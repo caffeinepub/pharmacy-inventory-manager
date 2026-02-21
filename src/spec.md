@@ -2,58 +2,35 @@
 
 ## Current State
 
-The pharmacy management system currently includes:
-
-**Backend (Motoko)**
-- Medicine management with batch numbers, HSN codes, expiry dates, purchase/selling rates, MRP
+The pharmacy inventory management system includes:
+- Medicine inventory tracking with batch numbers, HSN codes, expiry dates, rates, and MRP
 - Doctor management with custom margin percentages
-- Invoice generation with GST calculations (5% split into 2.5% SGST + 2.5% CGST)
-- Firm settings with business and shipping addresses
-- InvoiceItem type stores: medicineName, batchNumber, hsnCode, quantity, rate, amount, marginPercentage, sgst, cgst, totalAmount
-- No expiry date field in InvoiceItem type
-- No delete functionality for invoices
+- GST billing (5% on subtotal) with professional A4 invoice layouts
+- Invoice list view with delete functionality
+- Firm details and shipping address configuration in Settings
+- No margin percentage displayed on printed invoices
 
-**Frontend**
-- Dashboard with total stock value calculation
-- Inventory management page
-- Doctors management page
-- Billing page with GST invoice generation
-- Invoices list page (displays all invoices, no delete option)
-- Settings page with firm details and shipping address
+**Known Issue**: In the Add/Edit Medicine dialog (InventoryPage.tsx) and Add/Edit Doctor dialog (DoctorsPage.tsx), the text input cursor jumps to another position after typing each character. This is caused by the controlled input pattern with object spreading in onChange handlers, which triggers unnecessary re-renders.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Expiry date field to InvoiceItem type in backend
-- Delete button for each invoice in the invoices list page
-- deleteInvoice backend function to remove invoices by invoice number
+- None
 
 ### Modify
-- Backend: Update InvoiceItem type to include expiryDate field
-- Backend: Update createInvoice function to capture and store medicine expiry date in invoice items
-- Frontend: Update invoice display/print layout to show expiry date for each item
-- Frontend: Add delete button with confirmation dialog for each invoice in InvoicesPage
+- **InventoryPage.tsx**: Fix input cursor jumping issue in medicine form by optimizing the onChange handlers to prevent unnecessary re-renders
+- **DoctorsPage.tsx**: Fix input cursor jumping issue in doctor form by optimizing the onChange handlers to prevent unnecessary re-renders
 
 ### Remove
-- Nothing to remove
+- None
 
 ## Implementation Plan
 
-1. **Backend Updates**
-   - Add `expiryDate : Text` field to InvoiceItem type
-   - Update createInvoice function to include `expiryDate = medicine.expiryDate` when building invoice items
-   - Add `deleteInvoice(invoiceNumber : Nat)` function to remove invoices from the map
-
-2. **Frontend Updates**
-   - Update invoice display components to show expiry date column/field for each medicine item
-   - Add delete button (trash icon) next to each invoice in the invoices list
-   - Implement confirmation dialog before deleting an invoice
-   - Wire delete button to backend deleteInvoice function
-   - Refresh invoice list after successful deletion
+1. Update InventoryPage.tsx medicine form inputs to use functional setState updates instead of object spreading
+2. Update DoctorsPage.tsx doctor form inputs to use functional setState updates instead of object spreading
+3. Ensure all text inputs maintain cursor position during continuous typing
+4. Validate the fix by testing continuous typing in all form fields
 
 ## UX Notes
 
-- Expiry date will appear in the invoice items table alongside batch number and HSN code
-- Delete button should have a confirmation dialog to prevent accidental deletions
-- After deleting an invoice, the list should refresh automatically to reflect the change
-- Invoice numbers remain sequential even after deletions (no renumbering)
+After this fix, users will be able to type continuously in all medicine and doctor form fields without the cursor jumping or pausing between characters. This significantly improves the data entry experience.

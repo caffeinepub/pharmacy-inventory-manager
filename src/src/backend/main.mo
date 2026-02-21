@@ -4,10 +4,10 @@ import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Runtime "mo:core/Runtime";
 import Array "mo:core/Array";
-import Migration "migration";
+
 import Iter "mo:core/Iter";
 
-(with migration = Migration.run)
+
 actor {
   type Medicine = {
     name : Text;

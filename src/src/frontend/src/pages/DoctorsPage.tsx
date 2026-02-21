@@ -142,7 +142,7 @@ export default function DoctorsPage() {
         <Input
           id="doctorName"
           value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
           placeholder="Dr. John Smith"
           disabled={isEdit}
         />
@@ -162,7 +162,7 @@ export default function DoctorsPage() {
           step="0.1"
           value={formData.marginPercentage}
           onChange={(e) =>
-            setFormData({ ...formData, marginPercentage: e.target.value })
+            setFormData(prev => ({ ...prev, marginPercentage: e.target.value }))
           }
           placeholder="15"
         />

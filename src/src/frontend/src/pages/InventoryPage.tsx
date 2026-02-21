@@ -199,7 +199,7 @@ export default function InventoryPage() {
         <Input
           id="name"
           value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
           placeholder="e.g., Paracetamol 500mg"
         />
       </div>
@@ -211,7 +211,7 @@ export default function InventoryPage() {
             type="number"
             value={formData.quantity}
             onChange={(e) =>
-              setFormData({ ...formData, quantity: e.target.value })
+              setFormData(prev => ({ ...prev, quantity: e.target.value }))
             }
             placeholder="100"
           />
@@ -222,7 +222,7 @@ export default function InventoryPage() {
             id="batchNumber"
             value={formData.batchNumber}
             onChange={(e) =>
-              setFormData({ ...formData, batchNumber: e.target.value })
+              setFormData(prev => ({ ...prev, batchNumber: e.target.value }))
             }
             placeholder="BATCH001"
           />
@@ -235,7 +235,7 @@ export default function InventoryPage() {
             id="hsnCode"
             value={formData.hsnCode}
             onChange={(e) =>
-              setFormData({ ...formData, hsnCode: e.target.value })
+              setFormData(prev => ({ ...prev, hsnCode: e.target.value }))
             }
             placeholder="30049099"
           />
@@ -247,7 +247,7 @@ export default function InventoryPage() {
             type="date"
             value={formData.expiryDate}
             onChange={(e) =>
-              setFormData({ ...formData, expiryDate: e.target.value })
+              setFormData(prev => ({ ...prev, expiryDate: e.target.value }))
             }
           />
         </div>
@@ -260,7 +260,7 @@ export default function InventoryPage() {
             type="number"
             value={formData.purchaseRate}
             onChange={(e) =>
-              setFormData({ ...formData, purchaseRate: e.target.value })
+              setFormData(prev => ({ ...prev, purchaseRate: e.target.value }))
             }
             placeholder="10"
           />
@@ -272,7 +272,7 @@ export default function InventoryPage() {
             type="number"
             value={formData.sellingRate}
             onChange={(e) =>
-              setFormData({ ...formData, sellingRate: e.target.value })
+              setFormData(prev => ({ ...prev, sellingRate: e.target.value }))
             }
             placeholder="15"
           />
@@ -283,7 +283,7 @@ export default function InventoryPage() {
             id="mrp"
             type="number"
             value={formData.mrp}
-            onChange={(e) => setFormData({ ...formData, mrp: e.target.value })}
+            onChange={(e) => setFormData(prev => ({ ...prev, mrp: e.target.value }))}
             placeholder="20"
           />
         </div>

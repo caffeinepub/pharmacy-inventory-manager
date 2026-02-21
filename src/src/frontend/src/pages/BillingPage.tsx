@@ -82,15 +82,21 @@ export default function BillingPage() {
     const qty = Number(quantity);
     const marginPercent = doctorMargin;
 
-    // Calculate amount with margin
+    // Calculate base amount
     const baseAmount = rate * qty;
-    const marginAmount = (baseAmount * marginPercent) / 100;
-    const amount = baseAmount + marginAmount;
+    
+    // Calculate GST 5% on subtotal (split as 2.5% SGST + 2.5% CGST)
+    const gst = (baseAmount * 5) / 100;
+    const sgst = gst / 2;
+    const cgst = gst / 2;
+    const subtotalWithGst = baseAmount + gst;
 
-    // Calculate GST (2.5% SGST + 2.5% CGST = 5% total)
-    const sgst = (amount * 2.5) / 100;
-    const cgst = (amount * 2.5) / 100;
-    const totalAmount = amount + sgst + cgst;
+    // Apply margin on the subtotal that includes GST
+    const marginAmount = (subtotalWithGst * marginPercent) / 100;
+    const totalAmount = subtotalWithGst + marginAmount;
+
+    // Amount displayed is the base amount (for the "Amount" column)
+    const amount = baseAmount;
 
     const newItem: BillItem = {
       medicineName: medicine.name,
@@ -152,8 +158,7 @@ export default function BillingPage() {
   };
 
   const subtotal = billItems.reduce((sum, item) => sum + item.amount, 0);
-  const totalSgst = billItems.reduce((sum, item) => sum + item.sgst, 0);
-  const totalCgst = billItems.reduce((sum, item) => sum + item.cgst, 0);
+  const totalGst = billItems.reduce((sum, item) => sum + item.sgst + item.cgst, 0);
   const grandTotal = billItems.reduce((sum, item) => sum + item.totalAmount, 0);
 
   return (
@@ -253,15 +258,9 @@ export default function BillingPage() {
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">SGST (2.5%):</span>
+              <span className="text-muted-foreground">GST (5%):</span>
               <span className="font-semibold">
-                ₹{totalSgst.toLocaleString("en-IN")}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">CGST (2.5%):</span>
-              <span className="font-semibold">
-                ₹{totalCgst.toLocaleString("en-IN")}
+                ₹{totalGst.toLocaleString("en-IN")}
               </span>
             </div>
             <Separator />
@@ -325,10 +324,7 @@ export default function BillingPage() {
                       Amount
                     </TableHead>
                     <TableHead className="text-right font-semibold">
-                      SGST
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      CGST
+                      GST 5%
                     </TableHead>
                     <TableHead className="text-right font-semibold">
                       Total
@@ -359,10 +355,7 @@ export default function BillingPage() {
                         ₹{item.amount.toLocaleString("en-IN")}
                       </TableCell>
                       <TableCell className="text-right">
-                        ₹{item.sgst.toLocaleString("en-IN")}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        ₹{item.cgst.toLocaleString("en-IN")}
+                        ₹{(item.sgst + item.cgst).toLocaleString("en-IN")}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
                         ₹{item.totalAmount.toLocaleString("en-IN")}
@@ -388,10 +381,7 @@ export default function BillingPage() {
                       ₹{subtotal.toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell className="text-right">
-                      ₹{totalSgst.toLocaleString("en-IN")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ₹{totalCgst.toLocaleString("en-IN")}
+                      ₹{totalGst.toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell className="text-right text-primary">
                       ₹{grandTotal.toLocaleString("en-IN")}

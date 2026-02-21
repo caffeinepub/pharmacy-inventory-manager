@@ -108,10 +108,7 @@ export default function InvoicesPage() {
                   Subtotal
                 </TableHead>
                 <TableHead className="text-right font-semibold">
-                  SGST
-                </TableHead>
-                <TableHead className="text-right font-semibold">
-                  CGST
+                  GST 5%
                 </TableHead>
                 <TableHead className="text-right font-semibold">
                   Grand Total
@@ -135,10 +132,7 @@ export default function InvoicesPage() {
                     ₹{Number(invoice.totalAmount).toLocaleString("en-IN")}
                   </TableCell>
                   <TableCell className="text-right">
-                    ₹{Number(invoice.totalSgst).toLocaleString("en-IN")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ₹{Number(invoice.totalCgst).toLocaleString("en-IN")}
+                    ₹{(Number(invoice.totalSgst) + Number(invoice.totalCgst)).toLocaleString("en-IN")}
                   </TableCell>
                   <TableCell className="text-right font-semibold text-primary">
                     ₹{Number(invoice.grandTotal).toLocaleString("en-IN")}
@@ -295,10 +289,7 @@ export default function InvoicesPage() {
                           Amount
                         </th>
                         <th className="border border-black p-2 text-right">
-                          SGST
-                        </th>
-                        <th className="border border-black p-2 text-right">
-                          CGST
+                          GST 5%
                         </th>
                         <th className="border border-black p-2 text-right">
                           Total
@@ -333,10 +324,7 @@ export default function InvoicesPage() {
                             ₹{Number(item.amount).toLocaleString("en-IN")}
                           </td>
                           <td className="border border-black p-2 text-right">
-                            ₹{Number(item.sgst).toLocaleString("en-IN")}
-                          </td>
-                          <td className="border border-black p-2 text-right">
-                            ₹{Number(item.cgst).toLocaleString("en-IN")}
+                            ₹{(Number(item.sgst) + Number(item.cgst)).toLocaleString("en-IN")}
                           </td>
                           <td className="border border-black p-2 text-right font-semibold">
                             ₹{Number(item.totalAmount).toLocaleString("en-IN")}
@@ -360,13 +348,7 @@ export default function InvoicesPage() {
                         </td>
                         <td className="border border-black p-2 text-right">
                           ₹
-                          {Number(selectedInvoice.totalSgst).toLocaleString(
-                            "en-IN"
-                          )}
-                        </td>
-                        <td className="border border-black p-2 text-right">
-                          ₹
-                          {Number(selectedInvoice.totalCgst).toLocaleString(
+                          {(Number(selectedInvoice.totalSgst) + Number(selectedInvoice.totalCgst)).toLocaleString(
                             "en-IN"
                           )}
                         </td>
@@ -392,14 +374,8 @@ export default function InvoicesPage() {
                         )}
                       </p>
                       <p className="text-sm">
-                        <strong>Total SGST (2.5%):</strong> ₹
-                        {Number(selectedInvoice.totalSgst).toLocaleString(
-                          "en-IN"
-                        )}
-                      </p>
-                      <p className="text-sm">
-                        <strong>Total CGST (2.5%):</strong> ₹
-                        {Number(selectedInvoice.totalCgst).toLocaleString(
+                        <strong>GST (5%):</strong> ₹
+                        {(Number(selectedInvoice.totalSgst) + Number(selectedInvoice.totalCgst)).toLocaleString(
                           "en-IN"
                         )}
                       </p>
