@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, AlertCircle, AlertTriangle } from "lucide-react";
 import {
   useGetAllMedicines,
   useAddMedicine,
@@ -27,6 +27,7 @@ import {
 } from "../hooks/useQueries";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import type { Medicine } from "../backend.d";
 import {
   AlertDialog,
@@ -180,12 +181,11 @@ export default function InventoryPage() {
     }
 
     if (
-      Number(formData.quantity) <= 0 ||
       Number(formData.purchaseRate) <= 0 ||
       Number(formData.sellingRate) <= 0 ||
       Number(formData.mrp) <= 0
     ) {
-      toast.error("Numeric values must be positive");
+      toast.error("Price values must be positive");
       return false;
     }
 
@@ -364,8 +364,10 @@ export default function InventoryPage() {
                 </TableRow>
               ) : (
                 filteredMedicines.map((medicine: Medicine) => {
+                  const quantityNum = Number(medicine.quantity);
+                  const isNegative = quantityNum < 0;
                   const stockValue =
-                    Number(medicine.quantity) * Number(medicine.purchaseRate);
+                    quantityNum * Number(medicine.purchaseRate);
                   const expired = isExpired(medicine.expiryDate);
                   const expiringSoon = isExpiringSoon(medicine.expiryDate);
 
@@ -381,7 +383,27 @@ export default function InventoryPage() {
                           />
                         )}
                       </TableCell>
-                      <TableCell>{Number(medicine.quantity)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {isNegative && (
+                            <AlertTriangle className="w-4 h-4 text-destructive" />
+                          )}
+                          <span
+                            className={
+                              isNegative
+                                ? "text-destructive font-semibold"
+                                : ""
+                            }
+                          >
+                            {quantityNum} units
+                          </span>
+                          {isNegative && (
+                            <Badge variant="destructive" className="text-xs">
+                              Negative Stock
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="font-mono text-sm">
                         {medicine.batchNumber}
                       </TableCell>

@@ -2,16 +2,16 @@ import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
-import Runtime "mo:core/Runtime";
 import Array "mo:core/Array";
-
+import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
+import Migration "migration";
 
-
+(with migration = Migration.run)
 actor {
   type Medicine = {
     name : Text;
-    quantity : Nat;
+    quantity : Int;
     batchNumber : Text;
     hsnCode : Text;
     expiryDate : Text;
@@ -29,7 +29,7 @@ actor {
     medicineName : Text;
     batchNumber : Text;
     hsnCode : Text;
-    quantity : Nat;
+    quantity : Int;
     rate : Int;
     amount : Int;
     marginPercentage : Int;
@@ -67,7 +67,7 @@ actor {
   // Medicine management
   public shared ({ caller }) func addOrUpdateMedicine(
     name : Text,
-    quantity : Nat,
+    quantity : Int,
     batchNumber : Text,
     hsnCode : Text,
     expiryDate : Text,
@@ -103,6 +103,27 @@ actor {
     medicines.values().toArray();
   };
 
+  public shared ({ caller }) func reduceMedicineStock(name : Text, quantity : Int) : async () {
+    switch (medicines.get(name)) {
+      case (null) {
+        Runtime.trap("Medicine not found");
+      };
+      case (?medicine) {
+        let updatedMedicine : Medicine = {
+          name = medicine.name;
+          quantity = medicine.quantity - quantity;
+          batchNumber = medicine.batchNumber;
+          hsnCode = medicine.hsnCode;
+          expiryDate = medicine.expiryDate;
+          purchaseRate = medicine.purchaseRate;
+          sellingRate = medicine.sellingRate;
+          mrp = medicine.mrp;
+        };
+        medicines.add(name, updatedMedicine);
+      };
+    };
+  };
+
   // Doctor management
   public shared ({ caller }) func addOrUpdateDoctor(name : Text, marginPercentage : Int) : async () {
     let doctor : Doctor = {
@@ -132,7 +153,7 @@ actor {
   };
 
   // Invoice management
-  public shared ({ caller }) func createInvoice(doctorName : Text, items : [(Text, Nat)]) : async Nat {
+  public shared ({ caller }) func createInvoice(doctorName : Text, items : [(Text, Int)]) : async Nat {
     let doctor = switch (doctors.get(doctorName)) {
       case (null) { Runtime.trap("Doctor not found") };
       case (?doctor) { doctor };
@@ -145,12 +166,11 @@ actor {
           case (?medicine) { medicine };
         };
 
-        let amount = medicine.sellingRate * quantity;
-        let marginAmount = amount + (amount * doctor.marginPercentage) / 100;
-        let gst = (marginAmount * 5) / 100;
-        let sgst = gst / 2;
-        let cgst = gst / 2;
-        let total = marginAmount + gst;
+        let baseAmount = medicine.sellingRate * quantity;
+        let gstAmount = (baseAmount * 5) / 100;
+        let sgst = gstAmount / 2;
+        let cgst = gstAmount / 2;
+        let totalAmount = baseAmount + gstAmount;
 
         {
           medicineName = medicine.name;
@@ -158,11 +178,11 @@ actor {
           hsnCode = medicine.hsnCode;
           quantity;
           rate = medicine.sellingRate;
-          amount;
-          marginPercentage = doctor.marginPercentage;
+          amount = baseAmount;
+          marginPercentage = 0;
           sgst;
           cgst;
-          totalAmount = total;
+          totalAmount;
           expiryDate = medicine.expiryDate;
         };
       }
@@ -183,7 +203,10 @@ actor {
       func(acc, item) { acc + item.cgst },
     );
 
-    let grandTotal = totalAmount + totalSgst + totalCgst;
+    let grandTotal = invoiceItems.foldLeft(
+      Int.fromNat(0),
+      func(acc, item) { acc + item.totalAmount },
+    );
 
     let invoice : Invoice = {
       invoiceNumber = nextInvoiceNumber;
@@ -193,6 +216,11 @@ actor {
       totalSgst;
       totalCgst;
       grandTotal;
+    };
+
+    // Reduce medicine stock quantities (allow negative values)
+    for ((medicineName, quantity) in items.values()) {
+      await reduceMedicineStock(medicineName, quantity);
     };
 
     invoices.add(nextInvoiceNumber, invoice);

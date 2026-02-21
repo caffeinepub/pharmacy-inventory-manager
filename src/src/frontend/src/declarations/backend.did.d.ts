@@ -68,6 +68,7 @@ export interface _SERVICE {
   'getFirmSettings' : ActorMethod<[], FirmSettings>,
   'getInvoice' : ActorMethod<[bigint], [] | [Invoice]>,
   'getMedicine' : ActorMethod<[string], [] | [Medicine]>,
+  'reduceMedicineStock' : ActorMethod<[string, bigint], undefined>,
   'updateFirmSettings' : ActorMethod<
     [string, string, string, string, string, string],
     undefined

@@ -1,6 +1,7 @@
 import Map "mo:core/Map";
+import Text "mo:core/Text";
 import Nat "mo:core/Nat";
-import Array "mo:core/Array";
+import Int "mo:core/Int";
 
 module {
   type OldMedicine = {
@@ -14,12 +15,12 @@ module {
     mrp : Int;
   };
 
-  type OldDoctor = {
+  type Doctor = {
     name : Text;
     marginPercentage : Int;
   };
 
-  type OldInvoiceItem = {
+  type InvoiceItem = {
     medicineName : Text;
     batchNumber : Text;
     hsnCode : Text;
@@ -30,19 +31,20 @@ module {
     sgst : Int;
     cgst : Int;
     totalAmount : Int;
+    expiryDate : Text;
   };
 
   type OldInvoice = {
     invoiceNumber : Nat;
     doctorName : Text;
-    items : [OldInvoiceItem];
+    items : [InvoiceItem];
     totalAmount : Int;
     totalSgst : Int;
     totalCgst : Int;
     grandTotal : Int;
   };
 
-  type OldFirmSettings = {
+  type FirmSettings = {
     name : Text;
     address : Text;
     gstin : Text;
@@ -53,17 +55,28 @@ module {
 
   type OldActor = {
     medicines : Map.Map<Text, OldMedicine>;
-    doctors : Map.Map<Text, OldDoctor>;
+    doctors : Map.Map<Text, Doctor>;
     invoices : Map.Map<Nat, OldInvoice>;
     nextInvoiceNumber : Nat;
-    firmSettings : ?OldFirmSettings;
+    firmSettings : ?FirmSettings;
+  };
+
+  type NewMedicine = {
+    name : Text;
+    quantity : Int;
+    batchNumber : Text;
+    hsnCode : Text;
+    expiryDate : Text;
+    purchaseRate : Int;
+    sellingRate : Int;
+    mrp : Int;
   };
 
   type NewInvoiceItem = {
     medicineName : Text;
     batchNumber : Text;
     hsnCode : Text;
-    quantity : Nat;
+    quantity : Int;
     rate : Int;
     amount : Int;
     marginPercentage : Int;
@@ -83,40 +96,38 @@ module {
     grandTotal : Int;
   };
 
-  type NewFirmSettings = {
-    name : Text;
-    address : Text;
-    gstin : Text;
-    contact : Text;
-    email : Text;
-    shippingAddress : Text;
-  };
-
   type NewActor = {
-    medicines : Map.Map<Text, OldMedicine>;
-    doctors : Map.Map<Text, OldDoctor>;
+    medicines : Map.Map<Text, NewMedicine>;
+    doctors : Map.Map<Text, Doctor>;
     invoices : Map.Map<Nat, NewInvoice>;
     nextInvoiceNumber : Nat;
-    firmSettings : ?NewFirmSettings;
+    firmSettings : ?FirmSettings;
   };
 
   public func run(old : OldActor) : NewActor {
+    let newMedicines = old.medicines.map<Text, OldMedicine, NewMedicine>(
+      func(_name, oldMedicine) {
+        { oldMedicine with quantity = Int.fromNat(oldMedicine.quantity) };
+      }
+    );
+
     let newInvoices = old.invoices.map<Nat, OldInvoice, NewInvoice>(
       func(_invoiceNumber, oldInvoice) {
         let newItems = oldInvoice.items.map(
           func(oldItem) {
-            {
-              oldItem with
-              expiryDate = "N/A";
-            };
+            { oldItem with quantity = Int.fromNat(oldItem.quantity) };
           }
         );
         { oldInvoice with items = newItems };
       }
     );
+
     {
-      old with
+      medicines = newMedicines;
+      doctors = old.doctors;
       invoices = newInvoices;
+      nextInvoiceNumber = old.nextInvoiceNumber;
+      firmSettings = old.firmSettings;
     };
   };
 };

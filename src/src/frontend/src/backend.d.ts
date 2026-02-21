@@ -65,5 +65,6 @@ export interface backendInterface {
     getFirmSettings(): Promise<FirmSettings>;
     getInvoice(invoiceNumber: bigint): Promise<Invoice | null>;
     getMedicine(name: string): Promise<Medicine | null>;
+    reduceMedicineStock(name: string, quantity: bigint): Promise<void>;
     updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, shippingAddress: string): Promise<void>;
 }

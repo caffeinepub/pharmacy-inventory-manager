@@ -21,7 +21,7 @@ export const InvoiceItem = IDL.Record({
   'hsnCode' : IDL.Text,
   'totalAmount' : IDL.Int,
   'batchNumber' : IDL.Text,
-  'quantity' : IDL.Nat,
+  'quantity' : IDL.Int,
   'amount' : IDL.Int,
   'medicineName' : IDL.Text,
 });
@@ -42,7 +42,7 @@ export const Medicine = IDL.Record({
   'hsnCode' : IDL.Text,
   'sellingRate' : IDL.Int,
   'batchNumber' : IDL.Text,
-  'quantity' : IDL.Nat,
+  'quantity' : IDL.Int,
 });
 export const FirmSettings = IDL.Record({
   'contact' : IDL.Text,
@@ -58,7 +58,7 @@ export const idlService = IDL.Service({
   'addOrUpdateMedicine' : IDL.Func(
       [
         IDL.Text,
-        IDL.Nat,
+        IDL.Int,
         IDL.Text,
         IDL.Text,
         IDL.Text,
@@ -70,7 +70,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'createInvoice' : IDL.Func(
-      [IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat))],
+      [IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int))],
       [IDL.Nat],
       [],
     ),
@@ -84,6 +84,7 @@ export const idlService = IDL.Service({
   'getFirmSettings' : IDL.Func([], [FirmSettings], ['query']),
   'getInvoice' : IDL.Func([IDL.Nat], [IDL.Opt(Invoice)], ['query']),
   'getMedicine' : IDL.Func([IDL.Text], [IDL.Opt(Medicine)], ['query']),
+  'reduceMedicineStock' : IDL.Func([IDL.Text, IDL.Int], [], []),
   'updateFirmSettings' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [],
@@ -107,7 +108,7 @@ export const idlFactory = ({ IDL }) => {
     'hsnCode' : IDL.Text,
     'totalAmount' : IDL.Int,
     'batchNumber' : IDL.Text,
-    'quantity' : IDL.Nat,
+    'quantity' : IDL.Int,
     'amount' : IDL.Int,
     'medicineName' : IDL.Text,
   });
@@ -128,7 +129,7 @@ export const idlFactory = ({ IDL }) => {
     'hsnCode' : IDL.Text,
     'sellingRate' : IDL.Int,
     'batchNumber' : IDL.Text,
-    'quantity' : IDL.Nat,
+    'quantity' : IDL.Int,
   });
   const FirmSettings = IDL.Record({
     'contact' : IDL.Text,
@@ -144,7 +145,7 @@ export const idlFactory = ({ IDL }) => {
     'addOrUpdateMedicine' : IDL.Func(
         [
           IDL.Text,
-          IDL.Nat,
+          IDL.Int,
           IDL.Text,
           IDL.Text,
           IDL.Text,
@@ -156,7 +157,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'createInvoice' : IDL.Func(
-        [IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat))],
+        [IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int))],
         [IDL.Nat],
         [],
       ),
@@ -170,6 +171,7 @@ export const idlFactory = ({ IDL }) => {
     'getFirmSettings' : IDL.Func([], [FirmSettings], ['query']),
     'getInvoice' : IDL.Func([IDL.Nat], [IDL.Opt(Invoice)], ['query']),
     'getMedicine' : IDL.Func([IDL.Text], [IDL.Opt(Medicine)], ['query']),
+    'reduceMedicineStock' : IDL.Func([IDL.Text, IDL.Int], [], []),
     'updateFirmSettings' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [],

@@ -147,6 +147,7 @@ export interface backendInterface {
     getFirmSettings(): Promise<FirmSettings>;
     getInvoice(invoiceNumber: bigint): Promise<Invoice | null>;
     getMedicine(name: string): Promise<Medicine | null>;
+    reduceMedicineStock(name: string, quantity: bigint): Promise<void>;
     updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, shippingAddress: string): Promise<void>;
 }
 import type { Invoice as _Invoice, Medicine as _Medicine } from "./declarations/backend.did.d.ts";
@@ -332,6 +333,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getMedicine(arg0);
             return from_candid_opt_n2(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async reduceMedicineStock(arg0: string, arg1: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.reduceMedicineStock(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.reduceMedicineStock(arg0, arg1);
+            return result;
         }
     }
     async updateFirmSettings(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string): Promise<void> {

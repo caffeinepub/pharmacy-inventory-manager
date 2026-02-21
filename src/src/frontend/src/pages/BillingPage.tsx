@@ -19,7 +19,7 @@ import {
   TableFooter,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, ShoppingCart, FileCheck } from "lucide-react";
+import { Plus, Trash2, ShoppingCart, FileCheck, AlertTriangle } from "lucide-react";
 import {
   useGetAllMedicines,
   useGetAllDoctors,
@@ -52,13 +52,6 @@ export default function BillingPage() {
   const { data: doctors = [] } = useGetAllDoctors();
   const createInvoice = useCreateInvoice();
 
-  const doctorMargin =
-    selectedDoctor
-      ? Number(
-          doctors.find((d) => d.name === selectedDoctor)?.marginPercentage || 0
-        )
-      : 0;
-
   const handleAddToCart = () => {
     if (!selectedMedicine || !quantity || Number(quantity) <= 0) {
       toast.error("Please select a medicine and enter valid quantity");
@@ -71,32 +64,21 @@ export default function BillingPage() {
       return;
     }
 
-    if (Number(quantity) > Number(medicine.quantity)) {
-      toast.error(
-        `Insufficient stock. Available: ${Number(medicine.quantity)} units`
-      );
-      return;
-    }
-
     const rate = Number(medicine.sellingRate);
     const qty = Number(quantity);
-    const marginPercent = doctorMargin;
 
-    // Calculate base amount
-    const baseAmount = rate * qty;
+    // Step 1: Calculate base amount (rate × quantity)
+    const amount = rate * qty;
     
-    // Calculate GST 5% on subtotal (split as 2.5% SGST + 2.5% CGST)
-    const gst = (baseAmount * 5) / 100;
-    const sgst = gst / 2;
-    const cgst = gst / 2;
-    const subtotalWithGst = baseAmount + gst;
-
-    // Apply margin on the subtotal that includes GST
-    const marginAmount = (subtotalWithGst * marginPercent) / 100;
-    const totalAmount = subtotalWithGst + marginAmount;
-
-    // Amount displayed is the base amount (for the "Amount" column)
-    const amount = baseAmount;
+    // Step 2: Calculate GST 5% on base amount
+    const gst = Math.round((amount * 5) / 100);
+    
+    // Step 3: Split GST into SGST and CGST (2.5% each)
+    const sgst = Math.round(gst / 2);
+    const cgst = Math.round(gst / 2);
+    
+    // Step 4: Calculate item total (amount + GST)
+    const totalAmount = amount + gst;
 
     const newItem: BillItem = {
       medicineName: medicine.name,
@@ -105,9 +87,9 @@ export default function BillingPage() {
       quantity: qty,
       rate,
       amount: Math.round(amount),
-      marginPercentage: marginPercent,
-      sgst: Math.round(sgst),
-      cgst: Math.round(cgst),
+      marginPercentage: 0, // Not used in calculations, stored for reference only
+      sgst,
+      cgst,
       totalAmount: Math.round(totalAmount),
     };
 
@@ -137,6 +119,34 @@ export default function BillingPage() {
     if (!selectedDoctor) {
       toast.error("Please select a doctor");
       return;
+    }
+
+    // Check for negative inventory warnings
+    const negativeInventoryItems: Array<{ name: string; remaining: number }> = [];
+    
+    for (const item of billItems) {
+      const medicine = medicines.find((m) => m.name === item.medicineName);
+      if (medicine) {
+        const currentStock = Number(medicine.quantity);
+        const afterBilling = currentStock - item.quantity;
+        
+        if (afterBilling < 0) {
+          negativeInventoryItems.push({
+            name: item.medicineName,
+            remaining: afterBilling,
+          });
+        }
+      }
+    }
+
+    // Show warnings for each item that will go negative
+    if (negativeInventoryItems.length > 0) {
+      negativeInventoryItems.forEach((item) => {
+        toast.warning(
+          `⚠️ Warning: ${item.name} will have negative inventory (${item.remaining} units)`,
+          { duration: 5000 }
+        );
+      });
     }
 
     try {
@@ -225,17 +235,17 @@ export default function BillingPage() {
                 <SelectTrigger id="doctor">
                   <SelectValue placeholder="Choose a doctor..." />
                 </SelectTrigger>
-                <SelectContent>
-                  {doctors.map((doc) => (
-                    <SelectItem key={doc.name} value={doc.name}>
-                      {doc.name} - Margin: {Number(doc.marginPercentage)}%
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                  <SelectContent>
+                    {doctors.map((doc) => (
+                      <SelectItem key={doc.name} value={doc.name}>
+                        {doc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
               </Select>
               {selectedDoctor && (
                 <p className="text-xs text-muted-foreground">
-                  {doctorMargin}% margin will be applied to all items
+                  Doctor selected for record-keeping
                 </p>
               )}
             </div>
