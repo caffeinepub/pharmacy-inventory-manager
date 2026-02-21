@@ -14,6 +14,7 @@ export const Doctor = IDL.Record({
 });
 export const InvoiceItem = IDL.Record({
   'marginPercentage' : IDL.Int,
+  'expiryDate' : IDL.Text,
   'cgst' : IDL.Int,
   'rate' : IDL.Int,
   'sgst' : IDL.Int,
@@ -74,14 +75,15 @@ export const idlService = IDL.Service({
       [],
     ),
   'deleteDoctor' : IDL.Func([IDL.Text], [], []),
+  'deleteInvoice' : IDL.Func([IDL.Nat], [], []),
   'deleteMedicine' : IDL.Func([IDL.Text], [], []),
   'getAllDoctors' : IDL.Func([], [IDL.Vec(Doctor)], ['query']),
   'getAllInvoices' : IDL.Func([], [IDL.Vec(Invoice)], ['query']),
   'getAllMedicines' : IDL.Func([], [IDL.Vec(Medicine)], ['query']),
   'getDoctor' : IDL.Func([IDL.Text], [Doctor], ['query']),
   'getFirmSettings' : IDL.Func([], [FirmSettings], ['query']),
-  'getInvoice' : IDL.Func([IDL.Nat], [Invoice], ['query']),
-  'getMedicine' : IDL.Func([IDL.Text], [Medicine], ['query']),
+  'getInvoice' : IDL.Func([IDL.Nat], [IDL.Opt(Invoice)], ['query']),
+  'getMedicine' : IDL.Func([IDL.Text], [IDL.Opt(Medicine)], ['query']),
   'updateFirmSettings' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [],
@@ -98,6 +100,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const InvoiceItem = IDL.Record({
     'marginPercentage' : IDL.Int,
+    'expiryDate' : IDL.Text,
     'cgst' : IDL.Int,
     'rate' : IDL.Int,
     'sgst' : IDL.Int,
@@ -158,14 +161,15 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'deleteDoctor' : IDL.Func([IDL.Text], [], []),
+    'deleteInvoice' : IDL.Func([IDL.Nat], [], []),
     'deleteMedicine' : IDL.Func([IDL.Text], [], []),
     'getAllDoctors' : IDL.Func([], [IDL.Vec(Doctor)], ['query']),
     'getAllInvoices' : IDL.Func([], [IDL.Vec(Invoice)], ['query']),
     'getAllMedicines' : IDL.Func([], [IDL.Vec(Medicine)], ['query']),
     'getDoctor' : IDL.Func([IDL.Text], [Doctor], ['query']),
     'getFirmSettings' : IDL.Func([], [FirmSettings], ['query']),
-    'getInvoice' : IDL.Func([IDL.Nat], [Invoice], ['query']),
-    'getMedicine' : IDL.Func([IDL.Text], [Medicine], ['query']),
+    'getInvoice' : IDL.Func([IDL.Nat], [IDL.Opt(Invoice)], ['query']),
+    'getMedicine' : IDL.Func([IDL.Text], [IDL.Opt(Medicine)], ['query']),
     'updateFirmSettings' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [],

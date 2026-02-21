@@ -30,6 +30,7 @@ export interface Invoice {
 }
 export interface InvoiceItem {
   'marginPercentage' : bigint,
+  'expiryDate' : string,
   'cgst' : bigint,
   'rate' : bigint,
   'sgst' : bigint,
@@ -58,14 +59,15 @@ export interface _SERVICE {
   >,
   'createInvoice' : ActorMethod<[string, Array<[string, bigint]>], bigint>,
   'deleteDoctor' : ActorMethod<[string], undefined>,
+  'deleteInvoice' : ActorMethod<[bigint], undefined>,
   'deleteMedicine' : ActorMethod<[string], undefined>,
   'getAllDoctors' : ActorMethod<[], Array<Doctor>>,
   'getAllInvoices' : ActorMethod<[], Array<Invoice>>,
   'getAllMedicines' : ActorMethod<[], Array<Medicine>>,
   'getDoctor' : ActorMethod<[string], Doctor>,
   'getFirmSettings' : ActorMethod<[], FirmSettings>,
-  'getInvoice' : ActorMethod<[bigint], Invoice>,
-  'getMedicine' : ActorMethod<[string], Medicine>,
+  'getInvoice' : ActorMethod<[bigint], [] | [Invoice]>,
+  'getMedicine' : ActorMethod<[string], [] | [Medicine]>,
   'updateFirmSettings' : ActorMethod<
     [string, string, string, string, string, string],
     undefined

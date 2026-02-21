@@ -2,61 +2,58 @@
 
 ## Current State
 
-The pharmacy inventory management system currently includes:
+The pharmacy management system currently includes:
 
-**Backend (Motoko)**:
-- FirmSettings type with: name, address, gstin, contact, email
-- updateFirmSettings and getFirmSettings functions
+**Backend (Motoko)**
+- Medicine management with batch numbers, HSN codes, expiry dates, purchase/selling rates, MRP
+- Doctor management with custom margin percentages
+- Invoice generation with GST calculations (5% split into 2.5% SGST + 2.5% CGST)
+- Firm settings with business and shipping addresses
+- InvoiceItem type stores: medicineName, batchNumber, hsnCode, quantity, rate, amount, marginPercentage, sgst, cgst, totalAmount
+- No expiry date field in InvoiceItem type
+- No delete functionality for invoices
 
-**Frontend**:
-- SettingsPage.tsx: Form to edit firm name, business address, GSTIN, contact, and email
-- InvoicesPage.tsx: Displays invoices with firm details in the header (name, address, gstin, contact, email)
-- BillingPage.tsx: Creates bills with doctor selection and GST calculations, displays margin percentage in the bill items table
+**Frontend**
+- Dashboard with total stock value calculation
+- Inventory management page
+- Doctors management page
+- Billing page with GST invoice generation
+- Invoices list page (displays all invoices, no delete option)
+- Settings page with firm details and shipping address
 
 ## Requested Changes (Diff)
 
 ### Add
-- Shipping address field in FirmSettings (backend)
-- Shipping address input field in SettingsPage (frontend)
-- Shipping address display section in the invoice print layout (InvoicesPage)
+- Expiry date field to InvoiceItem type in backend
+- Delete button for each invoice in the invoices list page
+- deleteInvoice backend function to remove invoices by invoice number
 
 ### Modify
-- Backend: FirmSettings type to include shippingAddress field
-- Backend: updateFirmSettings function signature to include shippingAddress parameter
-- Backend: getFirmSettings default return value to include shippingAddress
-- Frontend SettingsPage: Add shipping address textarea input to the form
-- Frontend InvoicesPage: Remove email display from invoice header, add shipping address section
-- Frontend BillingPage: Remove Margin% column from the bill items table (both in the preview table and in calculations)
+- Backend: Update InvoiceItem type to include expiryDate field
+- Backend: Update createInvoice function to capture and store medicine expiry date in invoice items
+- Frontend: Update invoice display/print layout to show expiry date for each item
+- Frontend: Add delete button with confirmation dialog for each invoice in InvoicesPage
 
 ### Remove
-- Email field display from invoice print layout in InvoicesPage
-- Margin% column from bill items table in BillingPage
+- Nothing to remove
 
 ## Implementation Plan
 
-1. **Backend Changes**:
-   - Update FirmSettings type to add `shippingAddress: Text` field
-   - Update updateFirmSettings function to accept shippingAddress parameter
-   - Update getFirmSettings default return to include empty shippingAddress
+1. **Backend Updates**
+   - Add `expiryDate : Text` field to InvoiceItem type
+   - Update createInvoice function to include `expiryDate = medicine.expiryDate` when building invoice items
+   - Add `deleteInvoice(invoiceNumber : Nat)` function to remove invoices from the map
 
-2. **Settings Page Changes**:
-   - Add shippingAddress field to SettingsFormData interface
-   - Add shipping address Textarea input field after business address
-   - Wire up state management for shipping address
-   - Pass shippingAddress to updateFirmSettings mutation
-
-3. **Billing Page Changes**:
-   - Remove "Margin%" table header and column from the bill items table
-   - Keep margin calculation in backend logic (for pricing), but don't display it in UI
-
-4. **Invoice Page Changes**:
-   - Remove email from firm details display in invoice header
-   - Add shipping address section below firm details (if shipping address exists)
-   - Keep email field in settings but don't show it on printed invoices
+2. **Frontend Updates**
+   - Update invoice display components to show expiry date column/field for each medicine item
+   - Add delete button (trash icon) next to each invoice in the invoices list
+   - Implement confirmation dialog before deleting an invoice
+   - Wire delete button to backend deleteInvoice function
+   - Refresh invoice list after successful deletion
 
 ## UX Notes
 
-- Shipping address will be optional (like other firm fields)
-- In the invoice, shipping address will appear as a separate line/section if populated
-- Margin percentage will still be applied to calculations but won't be visible to customers on bills
-- Email remains editable in settings but won't clutter the invoice layout
+- Expiry date will appear in the invoice items table alongside batch number and HSN code
+- Delete button should have a confirmation dialog to prevent accidental deletions
+- After deleting an invoice, the list should refresh automatically to reflect the change
+- Invoice numbers remain sequential even after deletions (no renumbering)

@@ -189,6 +189,20 @@ export function useCreateInvoice() {
   });
 }
 
+export function useDeleteInvoice() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (invoiceNumber: bigint) => {
+      if (!actor) throw new Error("Actor not initialized");
+      return actor.deleteInvoice(invoiceNumber);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
 // Firm Settings Queries
 export function useGetFirmSettings() {
   const { actor, isFetching } = useActor();

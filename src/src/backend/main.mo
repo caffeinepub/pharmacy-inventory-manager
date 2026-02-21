@@ -2,9 +2,10 @@ import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
-import Array "mo:core/Array";
 import Runtime "mo:core/Runtime";
+import Array "mo:core/Array";
 import Migration "migration";
+import Iter "mo:core/Iter";
 
 (with migration = Migration.run)
 actor {
@@ -35,6 +36,7 @@ actor {
     sgst : Int;
     cgst : Int;
     totalAmount : Int;
+    expiryDate : Text;
   };
 
   type Invoice = {
@@ -93,11 +95,8 @@ actor {
     medicines.remove(name);
   };
 
-  public query ({ caller }) func getMedicine(name : Text) : async Medicine {
-    switch (medicines.get(name)) {
-      case (null) { Runtime.trap("Medicine not found") };
-      case (?medicine) { medicine };
-    };
+  public query ({ caller }) func getMedicine(name : Text) : async ?Medicine {
+    medicines.get(name);
   };
 
   public query ({ caller }) func getAllMedicines() : async [Medicine] {
@@ -128,7 +127,8 @@ actor {
   };
 
   public query ({ caller }) func getAllDoctors() : async [Doctor] {
-    doctors.values().toArray();
+    let valuesIter = doctors.values();
+    valuesIter.toArray();
   };
 
   // Invoice management
@@ -163,6 +163,7 @@ actor {
           sgst;
           cgst;
           totalAmount = total;
+          expiryDate = medicine.expiryDate;
         };
       }
     );
@@ -199,15 +200,20 @@ actor {
     invoice.invoiceNumber;
   };
 
-  public query ({ caller }) func getInvoice(invoiceNumber : Nat) : async Invoice {
-    switch (invoices.get(invoiceNumber)) {
-      case (null) { Runtime.trap("Invoice not found") };
-      case (?invoice) { invoice };
+  public shared ({ caller }) func deleteInvoice(invoiceNumber : Nat) : async () {
+    if (not invoices.containsKey(invoiceNumber)) {
+      Runtime.trap("Invoice not found");
     };
+    invoices.remove(invoiceNumber);
+  };
+
+  public query ({ caller }) func getInvoice(invoiceNumber : Nat) : async ?Invoice {
+    invoices.get(invoiceNumber);
   };
 
   public query ({ caller }) func getAllInvoices() : async [Invoice] {
-    invoices.values().toArray();
+    let valuesIter = invoices.values();
+    valuesIter.toArray();
   };
 
   // Firm settings

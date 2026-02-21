@@ -7,6 +7,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -16,17 +26,20 @@ import {
   TableFooter,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Printer, Eye } from "lucide-react";
-import { useGetAllInvoices, useGetFirmSettings } from "../hooks/useQueries";
+import { FileText, Printer, Eye, Trash2 } from "lucide-react";
+import { useGetAllInvoices, useGetFirmSettings, useDeleteInvoice } from "../hooks/useQueries";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Invoice } from "../backend.d";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 
 export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [deleteInvoiceNumber, setDeleteInvoiceNumber] = useState<bigint | null>(null);
   const { data: invoices = [], isLoading } = useGetAllInvoices();
   const { data: firmSettings } = useGetFirmSettings();
+  const deleteInvoice = useDeleteInvoice();
 
   const sortedInvoices = [...invoices].sort(
     (a, b) => Number(b.invoiceNumber) - Number(a.invoiceNumber)
@@ -38,6 +51,22 @@ export default function InvoicesPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDeleteClick = (invoiceNumber: bigint) => {
+    setDeleteInvoiceNumber(invoiceNumber);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteInvoiceNumber) return;
+    
+    try {
+      await deleteInvoice.mutateAsync(deleteInvoiceNumber);
+      toast.success("Invoice deleted successfully");
+      setDeleteInvoiceNumber(null);
+    } catch (error) {
+      toast.error("Failed to delete invoice: " + (error as Error).message);
+    }
   };
 
   return (
@@ -115,15 +144,25 @@ export default function InvoicesPage() {
                     ₹{Number(invoice.grandTotal).toLocaleString("en-IN")}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewInvoice(invoice)}
-                      className="gap-2"
-                    >
-                      <Eye className="w-4 h-4" />
-                      View
-                    </Button>
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewInvoice(invoice)}
+                        className="gap-2"
+                      >
+                        <Eye className="w-4 h-4" />
+                        View
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteClick(invoice.invoiceNumber)}
+                        className="gap-2 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -241,6 +280,9 @@ export default function InvoicesPage() {
                           Batch
                         </th>
                         <th className="border border-black p-2 text-left">
+                          Expiry
+                        </th>
+                        <th className="border border-black p-2 text-left">
                           HSN Code
                         </th>
                         <th className="border border-black p-2 text-right">
@@ -275,6 +317,9 @@ export default function InvoicesPage() {
                           <td className="border border-black p-2 font-mono">
                             {item.batchNumber}
                           </td>
+                          <td className="border border-black p-2 text-sm">
+                            {item.expiryDate}
+                          </td>
                           <td className="border border-black p-2 font-mono">
                             {item.hsnCode}
                           </td>
@@ -302,7 +347,7 @@ export default function InvoicesPage() {
                     <tfoot className="bg-gray-100 font-semibold">
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="border border-black p-2 text-right"
                         >
                           Subtotal:
@@ -384,6 +429,31 @@ export default function InvoicesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={deleteInvoiceNumber !== null}
+        onOpenChange={() => setDeleteInvoiceNumber(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete Invoice #
+              {deleteInvoiceNumber?.toString().padStart(6, "0")}? This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteInvoice.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

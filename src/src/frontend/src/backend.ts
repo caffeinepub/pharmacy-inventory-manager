@@ -101,6 +101,7 @@ export interface Medicine {
 }
 export interface InvoiceItem {
     marginPercentage: bigint;
+    expiryDate: string;
     cgst: bigint;
     rate: bigint;
     sgst: bigint;
@@ -137,16 +138,18 @@ export interface backendInterface {
     addOrUpdateMedicine(name: string, quantity: bigint, batchNumber: string, hsnCode: string, expiryDate: string, purchaseRate: bigint, sellingRate: bigint, mrp: bigint): Promise<void>;
     createInvoice(doctorName: string, items: Array<[string, bigint]>): Promise<bigint>;
     deleteDoctor(name: string): Promise<void>;
+    deleteInvoice(invoiceNumber: bigint): Promise<void>;
     deleteMedicine(name: string): Promise<void>;
     getAllDoctors(): Promise<Array<Doctor>>;
     getAllInvoices(): Promise<Array<Invoice>>;
     getAllMedicines(): Promise<Array<Medicine>>;
     getDoctor(name: string): Promise<Doctor>;
     getFirmSettings(): Promise<FirmSettings>;
-    getInvoice(invoiceNumber: bigint): Promise<Invoice>;
-    getMedicine(name: string): Promise<Medicine>;
+    getInvoice(invoiceNumber: bigint): Promise<Invoice | null>;
+    getMedicine(name: string): Promise<Medicine | null>;
     updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, shippingAddress: string): Promise<void>;
 }
+import type { Invoice as _Invoice, Medicine as _Medicine } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async addOrUpdateDoctor(arg0: string, arg1: bigint): Promise<void> {
@@ -202,6 +205,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.deleteDoctor(arg0);
+            return result;
+        }
+    }
+    async deleteInvoice(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteInvoice(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteInvoice(arg0);
             return result;
         }
     }
@@ -289,32 +306,32 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getInvoice(arg0: bigint): Promise<Invoice> {
+    async getInvoice(arg0: bigint): Promise<Invoice | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getInvoice(arg0);
-                return result;
+                return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getInvoice(arg0);
-            return result;
+            return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getMedicine(arg0: string): Promise<Medicine> {
+    async getMedicine(arg0: string): Promise<Medicine | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getMedicine(arg0);
-                return result;
+                return from_candid_opt_n2(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getMedicine(arg0);
-            return result;
+            return from_candid_opt_n2(this._uploadFile, this._downloadFile, result);
         }
     }
     async updateFirmSettings(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string): Promise<void> {
@@ -331,6 +348,12 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+}
+function from_candid_opt_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Invoice]): Invoice | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Medicine]): Medicine | null {
+    return value.length === 0 ? null : value[0];
 }
 export interface CreateActorOptions {
     agent?: Agent;
