@@ -5,9 +5,9 @@ import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
-import Migration "migration";
 
-(with migration = Migration.run)
+
+
 actor {
   type Medicine = {
     name : Text;

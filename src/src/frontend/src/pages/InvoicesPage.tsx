@@ -183,34 +183,40 @@ export default function InvoicesPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {selectedInvoice && (
-            <div className="invoice-print-container">
-              <style>
-                {`
-                  @media print {
-                    body * {
-                      visibility: hidden;
-                    }
-                    .invoice-print-container,
-                    .invoice-print-container * {
-                      visibility: visible;
-                    }
-                    .invoice-print-container {
-                      position: absolute;
-                      left: 0;
-                      top: 0;
-                      width: 210mm;
-                      padding: 15mm;
-                    }
-                    @page {
-                      size: A4 portrait;
-                      margin: 0;
-                    }
-                  }
-                `}
-              </style>
+          {selectedInvoice && (() => {
+            // Calculate rounded GST for the entire invoice (used in summary)
+            const totalGst = Number(selectedInvoice.totalSgst) + Number(selectedInvoice.totalCgst);
+            const roundedTotalGst = Math.round(totalGst);
+            const roundedGrandTotal = Number(selectedInvoice.totalAmount) + roundedTotalGst;
 
-              <div className="bg-white text-black p-8 space-y-6">
+            return (
+              <div className="invoice-print-container">
+                <style>
+                  {`
+                    @media print {
+                      body * {
+                        visibility: hidden;
+                      }
+                      .invoice-print-container,
+                      .invoice-print-container * {
+                        visibility: visible;
+                      }
+                      .invoice-print-container {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 210mm;
+                        padding: 15mm;
+                      }
+                      @page {
+                        size: A4 portrait;
+                        margin: 0;
+                      }
+                    }
+                  `}
+                </style>
+
+                <div className="bg-white text-black p-8 space-y-6">
                 {/* Header */}
                 <div className="text-center border-b-2 border-black pb-4">
                   <h1 className="text-3xl font-bold mb-2">
@@ -297,40 +303,46 @@ export default function InvoicesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedInvoice.items.map((item, index) => (
-                        <tr key={index}>
-                          <td className="border border-black p-2">
-                            {index + 1}
-                          </td>
-                          <td className="border border-black p-2">
-                            {item.medicineName}
-                          </td>
-                          <td className="border border-black p-2 font-mono">
-                            {item.batchNumber}
-                          </td>
-                          <td className="border border-black p-2 text-sm">
-                            {item.expiryDate}
-                          </td>
-                          <td className="border border-black p-2 font-mono">
-                            {item.hsnCode}
-                          </td>
-                          <td className="border border-black p-2 text-right">
-                            {Number(item.quantity)}
-                          </td>
-                          <td className="border border-black p-2 text-right">
-                            ₹{Number(item.rate)}
-                          </td>
-                          <td className="border border-black p-2 text-right">
-                            ₹{Number(item.amount).toLocaleString("en-IN")}
-                          </td>
-                          <td className="border border-black p-2 text-right">
-                            ₹{(Number(item.sgst) + Number(item.cgst)).toLocaleString("en-IN")}
-                          </td>
-                          <td className="border border-black p-2 text-right font-semibold">
-                            ₹{Number(item.totalAmount).toLocaleString("en-IN")}
-                          </td>
-                        </tr>
-                      ))}
+                      {selectedInvoice.items.map((item, index) => {
+                        const itemGst = Number(item.sgst) + Number(item.cgst);
+                        const roundedItemGst = Math.round(itemGst);
+                        const roundedItemTotal = Number(item.amount) + roundedItemGst;
+
+                        return (
+                          <tr key={index}>
+                            <td className="border border-black p-2">
+                              {index + 1}
+                            </td>
+                            <td className="border border-black p-2">
+                              {item.medicineName}
+                            </td>
+                            <td className="border border-black p-2 font-mono">
+                              {item.batchNumber}
+                            </td>
+                            <td className="border border-black p-2 text-sm">
+                              {item.expiryDate}
+                            </td>
+                            <td className="border border-black p-2 font-mono">
+                              {item.hsnCode}
+                            </td>
+                            <td className="border border-black p-2 text-right">
+                              {Number(item.quantity)}
+                            </td>
+                            <td className="border border-black p-2 text-right">
+                              ₹{Number(item.rate)}
+                            </td>
+                            <td className="border border-black p-2 text-right">
+                              ₹{Number(item.amount).toLocaleString("en-IN")}
+                            </td>
+                            <td className="border border-black p-2 text-right">
+                              ₹{roundedItemGst.toLocaleString("en-IN")}
+                            </td>
+                            <td className="border border-black p-2 text-right font-semibold">
+                              ₹{roundedItemTotal.toLocaleString("en-IN")}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                     <tfoot className="bg-gray-100 font-semibold">
                       <tr>
@@ -348,13 +360,13 @@ export default function InvoicesPage() {
                         </td>
                         <td className="border border-black p-2 text-right">
                           ₹
-                          {(Number(selectedInvoice.totalSgst) + Number(selectedInvoice.totalCgst)).toLocaleString(
+                          {roundedTotalGst.toLocaleString(
                             "en-IN"
                           )}
                         </td>
                         <td className="border border-black p-2 text-right text-lg">
                           ₹
-                          {Number(selectedInvoice.grandTotal).toLocaleString(
+                          {roundedGrandTotal.toLocaleString(
                             "en-IN"
                           )}
                         </td>
@@ -375,7 +387,7 @@ export default function InvoicesPage() {
                       </p>
                       <p className="text-sm">
                         <strong>GST (5%):</strong> ₹
-                        {(Number(selectedInvoice.totalSgst) + Number(selectedInvoice.totalCgst)).toLocaleString(
+                        {roundedTotalGst.toLocaleString(
                           "en-IN"
                         )}
                       </p>
@@ -384,7 +396,7 @@ export default function InvoicesPage() {
                       <p className="text-sm text-gray-600">Grand Total</p>
                       <p className="text-3xl font-bold">
                         ₹
-                        {Number(selectedInvoice.grandTotal).toLocaleString(
+                        {roundedGrandTotal.toLocaleString(
                           "en-IN"
                         )}
                       </p>
@@ -402,7 +414,8 @@ export default function InvoicesPage() {
                 </div>
               </div>
             </div>
-          )}
+          );
+          })()}
         </DialogContent>
       </Dialog>
 

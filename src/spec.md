@@ -2,79 +2,58 @@
 
 ## Current State
 
-The pharmacy inventory system currently includes:
-- Medicine inventory with batch numbers, HSN codes, expiry dates, purchase/selling/MRP rates
-- Doctor management with custom margin percentages
-- Billing interface that adds items to cart and creates invoices
-- GST calculation (5% of subtotal) split into SGST and CGST
-- Invoice generation with professional A4 layouts
-- Firm settings with name, address, GSTIN, contact, and shipping address
-- Invoice deletion capability
+The pharmacy inventory management system currently:
+- Calculates GST as 5% of the subtotal (base selling price × quantity)
+- Splits GST into SGST (2.5%) and CGST (2.5%) in the backend
+- Displays GST amounts in the billing interface and printed invoices
+- Uses standard JavaScript/TypeScript number precision for all calculations
 
-**Current inventory behavior:**
-- Medicines can be added with initial stock quantities
-- Stock quantities remain static - they do NOT change when invoices are created
-- The billing page shows available stock and prevents adding items that exceed current stock
-- No tracking of stock movement or batch depletion
+**GST Calculation Flow:**
+1. Frontend (BillingPage.tsx): Calculates amount, GST (5%), SGST/CGST split, and total for preview
+2. Backend: Receives item names and quantities, recalculates everything including GST based on medicine rates and doctor margins
+3. Frontend (InvoicesPage.tsx): Displays stored invoice data including GST amounts
+
+**Current GST Display:**
+- Billing interface shows precise GST amounts (e.g., ₹15.75)
+- Printed invoices show precise GST amounts (e.g., ₹15.75)
+- No rounding is applied to GST values
 
 ## Requested Changes (Diff)
 
 ### Add
-1. **Automatic inventory deduction system:**
-   - When an invoice is created, automatically reduce medicine stock quantities
-   - Use FIFO (First In, First Out) logic - deduct from oldest batch first based on expiry date
-   - Support negative inventory (allow overselling)
-   - Display warning toast when billing would result in negative stock
-   - Track remaining stock per batch
-
-2. **Batch-aware inventory tracking:**
-   - System must handle multiple batches of the same medicine
-   - Each batch has its own expiry date and quantity
-   - Deduct quantities from the oldest expiring batch first
-   - If one batch is depleted, automatically deduct remainder from next oldest batch
+- Standard mathematical rounding for GST amount in printed invoices only
+- Rounding logic: decimals < 0.5 round down, ≥ 0.5 round up (e.g., 15.2 → 15, 15.7 → 16)
 
 ### Modify
-- **Backend `createInvoice` logic:**
-  - After creating invoice, iterate through each billed item
-  - Find all batches of that medicine sorted by expiry date (oldest first)
-  - Deduct requested quantity from batches sequentially
-  - Update medicine batch quantities in the backend state
-  
-- **Frontend billing interface:**
-  - Add negative inventory warning before creating invoice
-  - Check if any item would result in negative stock
-  - Show warning toast but still allow invoice creation
+- **InvoicesPage.tsx invoice display section**: Apply `Math.round()` to GST amounts when rendering the printed invoice
+- **Grand total calculation in invoice**: Use the rounded GST value to calculate the grand total (subtotal + rounded GST)
+- Keep the billing interface (BillingPage.tsx) unchanged - it continues to show unrounded GST for accurate preview
 
 ### Remove
 - None
 
 ## Implementation Plan
 
-1. **Update backend (`generate_motoko_code`):**
-   - Modify medicine data structure to support multiple batches per medicine name
-   - Implement FIFO batch deduction logic in `createInvoice`:
-     - Sort batches by expiry date ascending
-     - Deduct quantity from oldest batch first
-     - If batch quantity goes negative, continue to next batch
-     - Update all affected batch quantities
-   - Return updated medicine quantities after invoice creation
+1. **Update InvoicesPage.tsx**:
+   - In the printed invoice section (inside the Dialog), apply `Math.round()` to GST calculations
+   - Calculate rounded GST: `Math.round(Number(selectedInvoice.totalSgst) + Number(selectedInvoice.totalCgst))`
+   - Recalculate grand total using rounded GST: `Number(selectedInvoice.totalAmount) + roundedGst`
+   - Apply rounding to both:
+     - Individual item GST display in the invoice table
+     - Total GST in the footer row
+     - Summary section GST and grand total
+   - Keep the invoice list view (non-printed) showing original values from backend
 
-2. **Update frontend billing page:**
-   - Before creating invoice, calculate total available stock across all batches
-   - Check if any item quantity exceeds available stock
-   - Show warning toast: "Warning: [Medicine name] will have negative inventory (-X units)"
-   - Still allow invoice creation (don't block it)
-   - After successful invoice creation, query backend to refresh medicine list
+2. **Verify calculations**:
+   - Subtotal = sum of all item amounts (rate × quantity)
+   - Rounded GST = `Math.round(subtotal × 0.05)`
+   - Grand total = subtotal + rounded GST
 
-3. **Update inventory page display:**
-   - Show total quantity across all batches for each medicine
-   - Allow negative quantities to display (e.g., "-5 units")
-   - Optionally highlight negative stock with warning badge
+3. **No backend changes required**: Backend stores precise GST values, rounding happens only in the invoice display layer
 
 ## UX Notes
 
-- Users can oversell (negative inventory allowed) - this is intentional for scenarios where stock is expected to arrive
-- Warning toasts inform users before creating invoices that would cause negative stock
-- FIFO ensures oldest medicines are used first, reducing expiry waste
-- Inventory page will reflect real-time stock after each invoice
-- No manual stock adjustment needed - inventory only changes through billing
+- **User visibility**: Rounding only affects the final printed invoice, not the billing preview or invoice list
+- **Transparency**: The billing interface continues to show precise GST calculations for accuracy during cart building
+- **Compliance**: Standard mathematical rounding ensures GST amounts are whole rupees in final customer-facing documents
+- **Consistency**: All printed invoices will display rounded GST values, making totals easier to read and process
