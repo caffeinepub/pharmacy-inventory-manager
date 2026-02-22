@@ -19,6 +19,7 @@ interface SettingsFormData {
   contact: string;
   email: string;
   shippingAddress: string;
+  dilNumber: string;
 }
 
 export default function SettingsPage() {
@@ -32,6 +33,7 @@ export default function SettingsPage() {
     contact: "",
     email: "",
     shippingAddress: "",
+    dilNumber: "",
   });
 
   useEffect(() => {
@@ -43,6 +45,7 @@ export default function SettingsPage() {
         contact: firmSettings.contact,
         email: firmSettings.email,
         shippingAddress: firmSettings.shippingAddress,
+        dilNumber: firmSettings.dilNumber,
       });
     }
   }, [firmSettings]);
@@ -63,6 +66,7 @@ export default function SettingsPage() {
         contact: formData.contact,
         email: formData.email,
         shippingAddress: formData.shippingAddress,
+        dilNumber: formData.dilNumber,
       });
       toast.success("Firm settings updated successfully");
     } catch (error) {
@@ -119,7 +123,7 @@ export default function SettingsPage() {
                 id="firmName"
                 value={formData.name}
                 onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
+                  setFormData(prev => ({ ...prev, name: e.target.value }))
                 }
                 placeholder="ABC Pharmacy"
                 required
@@ -132,7 +136,7 @@ export default function SettingsPage() {
                 id="address"
                 value={formData.address}
                 onChange={(e) =>
-                  setFormData({ ...formData, address: e.target.value })
+                  setFormData(prev => ({ ...prev, address: e.target.value }))
                 }
                 placeholder="123 Main Street, City, State - 123456"
                 rows={3}
@@ -145,7 +149,7 @@ export default function SettingsPage() {
                 id="shippingAddress"
                 value={formData.shippingAddress}
                 onChange={(e) =>
-                  setFormData({ ...formData, shippingAddress: e.target.value })
+                  setFormData(prev => ({ ...prev, shippingAddress: e.target.value }))
                 }
                 placeholder="123 Shipping Street, City, State - 123456"
                 rows={3}
@@ -158,7 +162,7 @@ export default function SettingsPage() {
                 id="gstin"
                 value={formData.gstin}
                 onChange={(e) =>
-                  setFormData({ ...formData, gstin: e.target.value })
+                  setFormData(prev => ({ ...prev, gstin: e.target.value }))
                 }
                 placeholder="22AAAAA0000A1Z5"
                 maxLength={15}
@@ -168,31 +172,46 @@ export default function SettingsPage() {
               </p>
             </div>
 
+            <div className="grid gap-2">
+              <Label htmlFor="dilNumber">DIL Number (Drug License)</Label>
+              <Input
+                id="dilNumber"
+                value={formData.dilNumber}
+                onChange={(e) =>
+                  setFormData(prev => ({ ...prev, dilNumber: e.target.value }))
+                }
+                placeholder="DL-XXXXX-XXXXX"
+              />
+              <p className="text-xs text-muted-foreground">
+                Drug License Number for pharmacy operations
+              </p>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="contact">Contact Number</Label>
-                <Input
-                  id="contact"
-                  type="tel"
-                  value={formData.contact}
-                  onChange={(e) =>
-                    setFormData({ ...formData, contact: e.target.value })
-                  }
-                  placeholder="+91 98765 43210"
-                />
+                  <Input
+                    id="contact"
+                    type="tel"
+                    value={formData.contact}
+                    onChange={(e) =>
+                      setFormData(prev => ({ ...prev, contact: e.target.value }))
+                    }
+                    placeholder="+91 98765 43210"
+                  />
               </div>
 
               <div className="grid gap-2">
                 <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  placeholder="pharmacy@example.com"
-                />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData(prev => ({ ...prev, email: e.target.value }))
+                    }
+                    placeholder="pharmacy@example.com"
+                  />
               </div>
             </div>
 
@@ -219,6 +238,7 @@ export default function SettingsPage() {
                       contact: firmSettings.contact,
                       email: firmSettings.email,
                       shippingAddress: firmSettings.shippingAddress,
+                      dilNumber: firmSettings.dilNumber,
                     })
                   }
                 >

@@ -13,6 +13,7 @@ import type { Principal } from '@icp-sdk/core/principal';
 export interface Doctor { 'marginPercentage' : bigint, 'name' : string }
 export interface FirmSettings {
   'contact' : string,
+  'dilNumber' : string,
   'name' : string,
   'email' : string,
   'gstin' : string,
@@ -70,7 +71,7 @@ export interface _SERVICE {
   'getMedicine' : ActorMethod<[string], [] | [Medicine]>,
   'reduceMedicineStock' : ActorMethod<[string, bigint], undefined>,
   'updateFirmSettings' : ActorMethod<
-    [string, string, string, string, string, string],
+    [string, string, string, string, string, string, string],
     undefined
   >,
 }

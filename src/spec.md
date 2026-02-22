@@ -2,58 +2,82 @@
 
 ## Current State
 
-The pharmacy inventory management system currently:
-- Calculates GST as 5% of the subtotal (base selling price × quantity)
-- Splits GST into SGST (2.5%) and CGST (2.5%) in the backend
-- Displays GST amounts in the billing interface and printed invoices
-- Uses standard JavaScript/TypeScript number precision for all calculations
+The pharmacy system currently has:
+- Medicine inventory management with batch tracking, HSN codes, and expiry dates
+- Doctor management with custom margin percentages
+- Billing system with GST (5%) calculation and invoice generation
+- Settings page with firm details (name, address, GSTIN, contact, email, shipping address)
+- Invoice display with all relevant details
 
-**GST Calculation Flow:**
-1. Frontend (BillingPage.tsx): Calculates amount, GST (5%), SGST/CGST split, and total for preview
-2. Backend: Receives item names and quantities, recalculates everything including GST based on medicine rates and doctor margins
-3. Frontend (InvoicesPage.tsx): Displays stored invoice data including GST amounts
+**Known Issue**: Input fields in medicine forms, doctor forms, and billing page experience cursor jumping during typing, causing the cursor to move to another position after each letter, making data entry very difficult.
 
-**Current GST Display:**
-- Billing interface shows precise GST amounts (e.g., ₹15.75)
-- Printed invoices show precise GST amounts (e.g., ₹15.75)
-- No rounding is applied to GST values
+**Missing Feature**: The system lacks a DIL (Drug License) number field in settings and on printed invoices, which is required for pharmacy documentation.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Standard mathematical rounding for GST amount in printed invoices only
-- Rounding logic: decimals < 0.5 round down, ≥ 0.5 round up (e.g., 15.2 → 15, 15.7 → 16)
+- DIL number field in backend `FirmSettings` type
+- DIL number input in Settings page UI
+- DIL number display on printed invoices
 
 ### Modify
-- **InvoicesPage.tsx invoice display section**: Apply `Math.round()` to GST amounts when rendering the printed invoice
-- **Grand total calculation in invoice**: Use the rounded GST value to calculate the grand total (subtotal + rounded GST)
-- Keep the billing interface (BillingPage.tsx) unchanged - it continues to show unrounded GST for accurate preview
+- Fix cursor jumping issue in all input fields across:
+  - InventoryPage: Medicine name, quantity, batch number, HSN code, expiry date, purchase rate, selling rate, MRP inputs
+  - DoctorsPage: Doctor name and margin percentage inputs
+  - BillingPage: Quantity input field
+  - SettingsPage: All firm details input fields
+- Update backend to store and retrieve DIL number as part of firm settings
+- Update invoice printing layout to include DIL number field
 
 ### Remove
 - None
 
 ## Implementation Plan
 
-1. **Update InvoicesPage.tsx**:
-   - In the printed invoice section (inside the Dialog), apply `Math.round()` to GST calculations
-   - Calculate rounded GST: `Math.round(Number(selectedInvoice.totalSgst) + Number(selectedInvoice.totalCgst))`
-   - Recalculate grand total using rounded GST: `Number(selectedInvoice.totalAmount) + roundedGst`
-   - Apply rounding to both:
-     - Individual item GST display in the invoice table
-     - Total GST in the footer row
-     - Summary section GST and grand total
-   - Keep the invoice list view (non-printed) showing original values from backend
+### Backend Changes
+1. **Update `FirmSettings` type** in `main.mo`:
+   - Add `dilNumber: Text` field to the `FirmSettings` record type
+   - Update `updateFirmSettings` function to accept `dilNumber` parameter
+   - Update `getFirmSettings` query to return default value for `dilNumber` when not set
 
-2. **Verify calculations**:
-   - Subtotal = sum of all item amounts (rate × quantity)
-   - Rounded GST = `Math.round(subtotal × 0.05)`
-   - Grand total = subtotal + rounded GST
+### Frontend Changes
+1. **Fix cursor jumping in InventoryPage**:
+   - Review state update patterns in medicine form inputs
+   - Ensure controlled input values use functional state updates (`prev => ({ ...prev, field: value })`)
+   - Remove any unnecessary re-renders or key changes
 
-3. **No backend changes required**: Backend stores precise GST values, rounding happens only in the invoice display layer
+2. **Fix cursor jumping in DoctorsPage**:
+   - Apply same controlled input pattern fixes to doctor form fields
+   - Ensure state updates don't cause unmounting/remounting of input components
+
+3. **Fix cursor jumping in BillingPage**:
+   - Fix quantity input field to maintain cursor position during typing
+   - Review select dropdown interactions
+
+4. **Fix cursor jumping in SettingsPage**:
+   - Apply controlled input fixes to all firm settings fields
+   - Ensure textarea components maintain cursor position
+
+5. **Add DIL number to Settings**:
+   - Add DIL number input field in the SettingsPage form
+   - Include DIL number in the form state and submission
+   - Add appropriate label and placeholder text
+   - Position it logically near other regulatory fields (after GSTIN)
+
+6. **Add DIL number to Invoices**:
+   - Update invoice printing component to display DIL number
+   - Position DIL number in the header section alongside other firm details
+   - Fetch DIL number from firm settings when generating invoices
+
+### Validation & Testing
+1. Verify all input fields allow continuous typing without cursor jumps
+2. Test DIL number appears correctly on printed invoices
+3. Test DIL number persists after saving settings
+4. Ensure backward compatibility with existing firm settings
 
 ## UX Notes
 
-- **User visibility**: Rounding only affects the final printed invoice, not the billing preview or invoice list
-- **Transparency**: The billing interface continues to show precise GST calculations for accuracy during cart building
-- **Compliance**: Standard mathematical rounding ensures GST amounts are whole rupees in final customer-facing documents
-- **Consistency**: All printed invoices will display rounded GST values, making totals easier to read and process
+- **Cursor jumping fix**: Users should be able to type continuously in all input fields without any interruption or cursor repositioning. This is critical for data entry efficiency.
+- **DIL number placement**: Should appear in Settings page near GSTIN field (after it) since both are regulatory identifiers
+- **DIL number on invoice**: Should be displayed prominently in the header section of printed invoices, typically near the firm name and GSTIN
+- **Form validation**: DIL number should be optional (not required) as not all pharmacies may have one immediately available

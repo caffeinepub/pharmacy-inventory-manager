@@ -114,6 +114,7 @@ export interface InvoiceItem {
 }
 export interface FirmSettings {
     contact: string;
+    dilNumber: string;
     name: string;
     email: string;
     gstin: string;
@@ -148,7 +149,7 @@ export interface backendInterface {
     getInvoice(invoiceNumber: bigint): Promise<Invoice | null>;
     getMedicine(name: string): Promise<Medicine | null>;
     reduceMedicineStock(name: string, quantity: bigint): Promise<void>;
-    updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, shippingAddress: string): Promise<void>;
+    updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, shippingAddress: string, dilNumber: string): Promise<void>;
 }
 import type { Invoice as _Invoice, Medicine as _Medicine } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -349,17 +350,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async updateFirmSettings(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string): Promise<void> {
+    async updateFirmSettings(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string, arg6: string): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateFirmSettings(arg0, arg1, arg2, arg3, arg4, arg5);
+                const result = await this.actor.updateFirmSettings(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateFirmSettings(arg0, arg1, arg2, arg3, arg4, arg5);
+            const result = await this.actor.updateFirmSettings(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
             return result;
         }
     }

@@ -46,6 +46,7 @@ export const Medicine = IDL.Record({
 });
 export const FirmSettings = IDL.Record({
   'contact' : IDL.Text,
+  'dilNumber' : IDL.Text,
   'name' : IDL.Text,
   'email' : IDL.Text,
   'gstin' : IDL.Text,
@@ -86,7 +87,7 @@ export const idlService = IDL.Service({
   'getMedicine' : IDL.Func([IDL.Text], [IDL.Opt(Medicine)], ['query']),
   'reduceMedicineStock' : IDL.Func([IDL.Text, IDL.Int], [], []),
   'updateFirmSettings' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [],
       [],
     ),
@@ -133,6 +134,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const FirmSettings = IDL.Record({
     'contact' : IDL.Text,
+    'dilNumber' : IDL.Text,
     'name' : IDL.Text,
     'email' : IDL.Text,
     'gstin' : IDL.Text,
@@ -173,7 +175,7 @@ export const idlFactory = ({ IDL }) => {
     'getMedicine' : IDL.Func([IDL.Text], [IDL.Opt(Medicine)], ['query']),
     'reduceMedicineStock' : IDL.Func([IDL.Text, IDL.Int], [], []),
     'updateFirmSettings' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [],
         [],
       ),

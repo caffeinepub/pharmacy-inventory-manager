@@ -229,6 +229,11 @@ export default function InvoicesPage() {
                     <p>
                       <strong>GSTIN:</strong> {firmSettings?.gstin || "N/A"}
                     </p>
+                    {firmSettings?.dilNumber && (
+                      <p>
+                        <strong>DIL No:</strong> {firmSettings.dilNumber}
+                      </p>
+                    )}
                     <p>
                       <strong>Contact:</strong> {firmSettings?.contact || "N/A"}
                     </p>

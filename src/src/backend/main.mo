@@ -5,9 +5,9 @@ import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
+import Migration "migration";
 
-
-
+(with migration = Migration.run)
 actor {
   type Medicine = {
     name : Text;
@@ -56,6 +56,7 @@ actor {
     contact : Text;
     email : Text;
     shippingAddress : Text;
+    dilNumber : Text;
   };
 
   let medicines = Map.empty<Text, Medicine>();
@@ -252,6 +253,7 @@ actor {
     contact : Text,
     email : Text,
     shippingAddress : Text,
+    dilNumber : Text,
   ) : async () {
     let settings : FirmSettings = {
       name;
@@ -260,6 +262,7 @@ actor {
       contact;
       email;
       shippingAddress;
+      dilNumber;
     };
     firmSettings := ?settings;
   };
@@ -274,6 +277,7 @@ actor {
           contact = "0000000000";
           email = "default@example.com";
           shippingAddress = "Default Shipping Address";
+          dilNumber = "";
         };
       };
       case (?settings) { settings };

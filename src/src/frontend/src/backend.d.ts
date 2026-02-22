@@ -32,6 +32,7 @@ export interface InvoiceItem {
 }
 export interface FirmSettings {
     contact: string;
+    dilNumber: string;
     name: string;
     email: string;
     gstin: string;
@@ -66,5 +67,5 @@ export interface backendInterface {
     getInvoice(invoiceNumber: bigint): Promise<Invoice | null>;
     getMedicine(name: string): Promise<Medicine | null>;
     reduceMedicineStock(name: string, quantity: bigint): Promise<void>;
-    updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, shippingAddress: string): Promise<void>;
+    updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, shippingAddress: string, dilNumber: string): Promise<void>;
 }

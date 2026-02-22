@@ -217,6 +217,7 @@ export function useGetFirmSettings() {
           contact: "",
           email: "",
           shippingAddress: "",
+          dilNumber: "",
         };
       return actor.getFirmSettings();
     },
@@ -235,6 +236,7 @@ export function useUpdateFirmSettings() {
       contact: string;
       email: string;
       shippingAddress: string;
+      dilNumber: string;
     }) => {
       if (!actor) throw new Error("Actor not initialized");
       return actor.updateFirmSettings(
@@ -243,7 +245,8 @@ export function useUpdateFirmSettings() {
         params.gstin,
         params.contact,
         params.email,
-        params.shippingAddress
+        params.shippingAddress,
+        params.dilNumber
       );
     },
     onSuccess: () => {
