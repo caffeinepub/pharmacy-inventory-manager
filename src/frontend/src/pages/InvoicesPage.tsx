@@ -36,6 +36,7 @@ import {
   useDeleteInvoice,
   useGetAllDoctors,
   useGetAllInvoices,
+  useGetAllMedicines,
   useGetFirmSettings,
 } from "../hooks/useQueries";
 import { downloadElementAsJpeg } from "../utils/invoiceDownload";
@@ -48,6 +49,7 @@ export default function InvoicesPage() {
   const { data: invoices = [], isLoading } = useGetAllInvoices();
   const { data: firmSettings } = useGetFirmSettings();
   const { data: doctors = [] } = useGetAllDoctors();
+  const { data: medicines = [] } = useGetAllMedicines();
   const deleteInvoice = useDeleteInvoice();
 
   const sortedInvoices = [...invoices].sort(
@@ -403,6 +405,9 @@ export default function InvoicesPage() {
                               Rate
                             </th>
                             <th className="border border-black p-2 text-right">
+                              MRP
+                            </th>
+                            <th className="border border-black p-2 text-right">
                               Amount
                             </th>
                             <th className="border border-black p-2 text-right">
@@ -420,6 +425,10 @@ export default function InvoicesPage() {
                             );
                             const roundedItemTotal =
                               Number(item.amount) + itemGst;
+                            const medicine = medicines.find(
+                              (m) => m.name === item.medicineName,
+                            );
+                            const mrp = medicine ? Number(medicine.mrp) : null;
 
                             return (
                               <tr
@@ -447,6 +456,11 @@ export default function InvoicesPage() {
                                   ₹{Number(item.sellingPrice)}
                                 </td>
                                 <td className="border border-black p-2 text-right">
+                                  {mrp !== null
+                                    ? `₹${mrp.toLocaleString("en-IN")}`
+                                    : "N/A"}
+                                </td>
+                                <td className="border border-black p-2 text-right">
                                   ₹{Number(item.amount).toLocaleString("en-IN")}
                                 </td>
                                 <td className="border border-black p-2 text-right">
@@ -462,7 +476,7 @@ export default function InvoicesPage() {
                         <tfoot className="bg-gray-100 font-semibold">
                           <tr>
                             <td
-                              colSpan={7}
+                              colSpan={8}
                               className="border border-black p-2 text-right"
                             >
                               Subtotal:

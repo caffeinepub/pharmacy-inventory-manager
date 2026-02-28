@@ -47,6 +47,7 @@ import {
   useGetFirmSettings,
   useGetInvoice,
 } from "../hooks/useQueries";
+
 import { downloadElementAsJpeg } from "../utils/invoiceDownload";
 
 interface BillItem {
@@ -735,6 +736,9 @@ export default function BillingPage() {
                               Rate
                             </th>
                             <th className="border border-black p-2 text-right">
+                              MRP
+                            </th>
+                            <th className="border border-black p-2 text-right">
                               Amount
                             </th>
                             <th className="border border-black p-2 text-right">
@@ -752,6 +756,10 @@ export default function BillingPage() {
                             );
                             const roundedItemTotal =
                               Number(item.amount) + itemGst;
+                            const medicine = medicines.find(
+                              (m) => m.name === item.medicineName,
+                            );
+                            const mrp = medicine ? Number(medicine.mrp) : null;
 
                             return (
                               <tr
@@ -779,6 +787,11 @@ export default function BillingPage() {
                                   ₹{Number(item.sellingPrice)}
                                 </td>
                                 <td className="border border-black p-2 text-right">
+                                  {mrp !== null
+                                    ? `₹${mrp.toLocaleString("en-IN")}`
+                                    : "N/A"}
+                                </td>
+                                <td className="border border-black p-2 text-right">
                                   ₹{Number(item.amount).toLocaleString("en-IN")}
                                 </td>
                                 <td className="border border-black p-2 text-right">
@@ -794,7 +807,7 @@ export default function BillingPage() {
                         <tfoot className="bg-gray-100 font-semibold">
                           <tr>
                             <td
-                              colSpan={7}
+                              colSpan={8}
                               className="border border-black p-2 text-right"
                             >
                               Subtotal:
