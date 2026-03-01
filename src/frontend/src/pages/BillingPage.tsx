@@ -845,8 +845,10 @@ export default function BillingPage() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm text-gray-600">Grand Total</p>
-                          <p className="text-3xl font-bold">
+                          <p className="text-sm text-black font-semibold">
+                            Grand Total
+                          </p>
+                          <p className="text-3xl font-bold text-black">
                             ₹{roundedGrandTotal.toLocaleString("en-IN")}
                           </p>
                         </div>
@@ -854,7 +856,7 @@ export default function BillingPage() {
                     </div>
 
                     {/* Footer */}
-                    <div className="text-center text-xs text-gray-600 pt-4 border-t border-gray-300">
+                    <div className="text-center text-xs text-black pt-4 border-t border-black">
                       <p>Thank you for your business!</p>
                       <p className="mt-1">
                         This is a computer-generated invoice and does not

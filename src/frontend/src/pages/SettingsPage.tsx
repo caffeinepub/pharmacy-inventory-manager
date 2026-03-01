@@ -32,9 +32,7 @@ import { toast } from "sonner";
 import type { BackupRecord } from "../backend.d";
 import {
   useBackup,
-  useGetAppPin,
   useGetFirmSettings,
-  useSetAppPin,
   useUpdateFirmSettings,
 } from "../hooks/useQueries";
 
@@ -52,8 +50,7 @@ export default function SettingsPage() {
   const { data: firmSettings, isLoading } = useGetFirmSettings();
   const updateFirmSettings = useUpdateFirmSettings();
   const backupMutation = useBackup();
-  const { data: savedPin } = useGetAppPin();
-  const setAppPin = useSetAppPin();
+  const [isPinSaving, setIsPinSaving] = useState(false);
 
   const [formData, setFormData] = useState<SettingsFormData>({
     name: "",
@@ -84,7 +81,8 @@ export default function SettingsPage() {
     const newPin = newPinRef.current?.value ?? "";
     const confirmNewPin = confirmNewPinRef.current?.value ?? "";
 
-    if (oldPin !== savedPin) {
+    const storedPin = localStorage.getItem("pharmacy_app_pin");
+    if (oldPin !== storedPin) {
       toast.error("Current PIN is incorrect");
       return;
     }
@@ -100,11 +98,14 @@ export default function SettingsPage() {
     }
 
     try {
-      await setAppPin.mutateAsync(newPin);
+      setIsPinSaving(true);
+      localStorage.setItem("pharmacy_app_pin", newPin);
       toast.success("PIN changed successfully");
       setShowChangePinDialog(false);
     } catch (error) {
       toast.error(`Failed to change PIN: ${(error as Error).message}`);
+    } finally {
+      setIsPinSaving(false);
     }
   };
 
@@ -660,8 +661,8 @@ export default function SettingsPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={setAppPin.isPending}>
-                {setAppPin.isPending ? "Saving..." : "Change PIN"}
+              <Button type="submit" disabled={isPinSaving}>
+                {isPinSaving ? "Saving..." : "Change PIN"}
               </Button>
             </DialogFooter>
           </form>

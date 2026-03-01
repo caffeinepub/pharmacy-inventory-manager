@@ -10,10 +10,9 @@ import {
   ShoppingCart,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PinScreen from "./components/PinScreen";
 import { useActor } from "./hooks/useActor";
-import { useGetAppPin, useSetAppPin } from "./hooks/useQueries";
 import BillingPage from "./pages/BillingPage";
 import DashboardPage from "./pages/DashboardPage";
 import DoctorsPage from "./pages/DoctorsPage";
@@ -26,8 +25,14 @@ function AppShell() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isUnlocked, setIsUnlocked] = useState(false);
   const { isFetching: actorFetching } = useActor();
-  const { data: savedPin, isLoading: pinLoading } = useGetAppPin();
-  const setAppPin = useSetAppPin();
+  const [savedPin, setSavedPin] = useState<string | null>(null);
+  const [pinLoading, setPinLoading] = useState(true);
+
+  useEffect(() => {
+    const storedPin = localStorage.getItem("pharmacy_app_pin");
+    setSavedPin(storedPin);
+    setPinLoading(false);
+  }, []);
 
   // Determine PIN mode
   const pinMode: "set" | "enter" =
@@ -41,7 +46,8 @@ function AppShell() {
   };
 
   const handleSetPin = async (pin: string) => {
-    await setAppPin.mutateAsync(pin);
+    localStorage.setItem("pharmacy_app_pin", pin);
+    setSavedPin(pin);
   };
 
   if (isInitializing) {
