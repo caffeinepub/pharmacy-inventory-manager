@@ -641,13 +641,11 @@ export default function InventoryPage() {
                     Opening Stock
                   </TableHead>
                   <TableHead className="font-semibold">Sampling</TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">
+                  <TableHead className="font-semibold">
                     Sampling Value
                   </TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">
-                    In Hand Stock
-                  </TableHead>
-                  <TableHead className="font-semibold text-muted-foreground">
+                  <TableHead className="font-semibold">In Hand Stock</TableHead>
+                  <TableHead className="font-semibold">
                     In Hand Stock Price
                   </TableHead>
                   <TableHead className="font-semibold">Batch</TableHead>
@@ -714,10 +712,10 @@ export default function InventoryPage() {
                             onUpdate={handleUpdateSampling}
                           />
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell>
                           ₹{samplingValue.toLocaleString("en-IN")}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell>
                           <div className="flex items-center gap-2">
                             {isNegative && (
                               <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -736,7 +734,7 @@ export default function InventoryPage() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell>
                           ₹{inHandStockPrice.toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell className="font-mono text-sm">

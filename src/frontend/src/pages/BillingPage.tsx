@@ -712,39 +712,75 @@ export default function BillingPage() {
                     {/* Items Table */}
                     <div className="border border-black">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-200">
-                          <tr>
-                            <th className="border border-black p-2 text-left">
+                        <thead
+                          className="bg-gray-200"
+                          style={{ color: "black" }}
+                        >
+                          <tr style={{ color: "black" }}>
+                            <th
+                              className="border border-black p-2 text-left"
+                              style={{ color: "black" }}
+                            >
                               S.No
                             </th>
-                            <th className="border border-black p-2 text-left">
+                            <th
+                              className="border border-black p-2 text-left"
+                              style={{ color: "black" }}
+                            >
                               Medicine Name
                             </th>
-                            <th className="border border-black p-2 text-left">
+                            <th
+                              className="border border-black p-2 text-left"
+                              style={{ color: "black" }}
+                            >
                               Batch
                             </th>
-                            <th className="border border-black p-2 text-left">
+                            <th
+                              className="border border-black p-2 text-left"
+                              style={{ color: "black" }}
+                            >
                               Expiry
                             </th>
-                            <th className="border border-black p-2 text-left">
+                            <th
+                              className="border border-black p-2 text-left"
+                              style={{ color: "black" }}
+                            >
                               HSN Code
                             </th>
-                            <th className="border border-black p-2 text-right">
+                            <th
+                              className="border border-black p-2 text-right"
+                              style={{ color: "black" }}
+                            >
                               Qty
                             </th>
-                            <th className="border border-black p-2 text-right">
+                            <th
+                              className="border border-black p-2 text-right"
+                              style={{ color: "black" }}
+                            >
                               Rate
                             </th>
-                            <th className="border border-black p-2 text-right">
+                            <th
+                              className="border border-black p-2 text-right"
+                              style={{ color: "black" }}
+                            >
                               MRP
                             </th>
-                            <th className="border border-black p-2 text-right">
+                            <th
+                              className="border border-black p-2 text-right"
+                              style={{ color: "black" }}
+                            >
                               Amount
                             </th>
-                            <th className="border border-black p-2 text-right">
+                            <th
+                              className="border border-black p-2 text-right"
+                              style={{ color: "black" }}
+                            >
                               GST 5%
                             </th>
-                            <th className="border border-black p-2 text-right">
+                            <th
+                              className="border border-black p-2 text-right"
+                              style={{ color: "black" }}
+                            >
                               Total
                             </th>
                           </tr>
@@ -764,64 +800,111 @@ export default function BillingPage() {
                             return (
                               <tr
                                 key={`preview-item-${item.medicineName}-${index}`}
+                                style={{ color: "black" }}
                               >
-                                <td className="border border-black p-2">
+                                <td
+                                  className="border border-black p-2"
+                                  style={{ color: "black" }}
+                                >
                                   {index + 1}
                                 </td>
-                                <td className="border border-black p-2">
+                                <td
+                                  className="border border-black p-2"
+                                  style={{ color: "black" }}
+                                >
                                   {item.medicineName}
                                 </td>
-                                <td className="border border-black p-2 font-mono">
+                                <td
+                                  className="border border-black p-2 font-mono"
+                                  style={{ color: "black" }}
+                                >
                                   {item.batchNumber}
                                 </td>
-                                <td className="border border-black p-2 text-sm">
+                                <td
+                                  className="border border-black p-2 text-sm"
+                                  style={{ color: "black" }}
+                                >
                                   {item.expiryDate}
                                 </td>
-                                <td className="border border-black p-2 font-mono">
+                                <td
+                                  className="border border-black p-2 font-mono"
+                                  style={{ color: "black" }}
+                                >
                                   {item.hsnCode}
                                 </td>
-                                <td className="border border-black p-2 text-right">
+                                <td
+                                  className="border border-black p-2 text-right"
+                                  style={{ color: "black" }}
+                                >
                                   {Number(item.quantity)}
                                 </td>
-                                <td className="border border-black p-2 text-right">
+                                <td
+                                  className="border border-black p-2 text-right"
+                                  style={{ color: "black" }}
+                                >
                                   ₹{Number(item.sellingPrice)}
                                 </td>
-                                <td className="border border-black p-2 text-right">
+                                <td
+                                  className="border border-black p-2 text-right"
+                                  style={{ color: "black" }}
+                                >
                                   {mrp !== null
                                     ? `₹${mrp.toLocaleString("en-IN")}`
                                     : "N/A"}
                                 </td>
-                                <td className="border border-black p-2 text-right">
+                                <td
+                                  className="border border-black p-2 text-right"
+                                  style={{ color: "black" }}
+                                >
                                   ₹{Number(item.amount).toLocaleString("en-IN")}
                                 </td>
-                                <td className="border border-black p-2 text-right">
+                                <td
+                                  className="border border-black p-2 text-right"
+                                  style={{ color: "black" }}
+                                >
                                   ₹{itemGst.toLocaleString("en-IN")}
                                 </td>
-                                <td className="border border-black p-2 text-right font-semibold">
+                                <td
+                                  className="border border-black p-2 text-right font-semibold"
+                                  style={{ color: "black" }}
+                                >
                                   ₹{roundedItemTotal.toLocaleString("en-IN")}
                                 </td>
                               </tr>
                             );
                           })}
                         </tbody>
-                        <tfoot className="bg-gray-100 font-semibold">
-                          <tr>
+                        <tfoot
+                          className="bg-gray-100 font-semibold"
+                          style={{ color: "black" }}
+                        >
+                          <tr style={{ color: "black" }}>
                             <td
                               colSpan={8}
                               className="border border-black p-2 text-right"
+                              style={{ color: "black" }}
                             >
                               Subtotal:
                             </td>
-                            <td className="border border-black p-2 text-right">
+                            <td
+                              className="border border-black p-2 text-right"
+                              style={{ color: "black" }}
+                            >
                               ₹
                               {Number(previewInvoice.subtotal).toLocaleString(
                                 "en-IN",
                               )}
                             </td>
-                            <td className="border border-black p-2 text-right">
+                            <td
+                              className="border border-black p-2 text-right"
+                              style={{ color: "black" }}
+                            >
                               ₹{roundedTotalGst.toLocaleString("en-IN")}
                             </td>
-                            <td className="border border-black p-2 text-right text-lg">
+                            <td
+                              className="border border-black p-2 text-right text-lg"
+                              style={{ color: "black" }}
+                            >
                               ₹{roundedGrandTotal.toLocaleString("en-IN")}
                             </td>
                           </tr>
