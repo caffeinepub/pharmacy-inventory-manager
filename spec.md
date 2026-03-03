@@ -1,28 +1,35 @@
 # Pharmacy Inventory Manager
 
 ## Current State
-- App uses a light healthcare theme (clinical teal) with OKLCH tokens in index.css
-- The `html` element has no `dark` class applied; `App.tsx` does not toggle dark mode
-- Invoice preview/print in both `BillingPage.tsx` and `InvoicesPage.tsx` shows: S.No, Medicine Name, Batch, Expiry, HSN Code, Qty, Rate, Amount, GST 5%, Total
-- `InvoiceItem` type does NOT have an `mrp` field; MRP lives on the `Medicine` type
-- Both invoice components already receive `doctors` list; medicines list is also available in BillingPage
+- App uses a dark professional theme (dark navy/charcoal background, teal accents) applied via the `.dark` class or direct dark CSS overrides
+- Invoice preview (in both BillingPage and InvoicesPage) shows a static read-only display of all invoice fields
+- GST is calculated automatically and displayed as a read-only value
+- All invoice fields (firm name, doctor, date, invoice number, item rows, GST, totals) are not editable
 
 ## Requested Changes (Diff)
 
 ### Add
-- Dark Professional theme as the default/active theme by adding `class="dark"` to the `<html>` element
-- MRP column in the invoice items table (in both BillingPage print preview and InvoicesPage invoice view)
-- MRP lookup: since `InvoiceItem` doesn't have MRP, look it up from the medicines list using `medicineName`; if not found, show "N/A"
+- Inline editing capability for all invoice fields in the preview modal:
+  - Header fields: firm name, address, GSTIN, DIL No, contact, shipping address
+  - Invoice meta: invoice number, date, doctor name
+  - Per-item fields: medicine name, batch number, expiry date, HSN code, quantity, rate, MRP
+  - GST amount (editable, overrides auto-calculation)
+  - Subtotal (auto-calculated from items; grand total = subtotal + GST)
+- Tap-to-edit pattern: fields display as plain text normally, show input on tap/click
+- When GST is edited manually, grand total recalculates as subtotal + edited GST
 
 ### Modify
-- `index.css` or `main.tsx`/`App.tsx`: ensure the `dark` class is applied on `<html>` so dark OKLCH variables activate
-- Both invoice tables in `BillingPage.tsx` and `InvoicesPage.tsx`: add MRP column between "Rate" and "Amount" columns
-- `InvoicesPage.tsx`: import and use `useGetAllMedicines` to resolve MRP per invoice item
+- Revert theme from dark professional back to light/white (as it was in version 30)
+- Remove `dark` class from html/body/root if present; ensure index.css light tokens are active
+- Both BillingPage invoice preview and InvoicesPage invoice view should have editable fields
 
 ### Remove
-- Nothing removed
+- Dark theme class/forced dark mode styling from App root
 
 ## Implementation Plan
-1. Apply `dark` class to `<html>` element in `index.html` or via `main.tsx` so the existing dark OKLCH tokens activate globally
-2. In `BillingPage.tsx` invoice preview: add `useGetAllMedicines` hook, add "MRP" column header, display MRP per item by looking up medicine from the medicines list; update colSpan in tfoot accordingly
-3. In `InvoicesPage.tsx` invoice view: add `useGetAllMedicines` hook, add "MRP" column header, display MRP per item by looking up from medicines list; update colSpan in tfoot accordingly
+1. Remove dark class from App.tsx html root (if present); verify index.css light tokens are default
+2. In InvoicesPage: convert invoice preview to use local editable state; each cell becomes a click-to-edit input
+3. In BillingPage: same editable invoice pattern for the print preview modal
+4. GST field: editable number input; grand total = subtotal + gst (recalculated live)
+5. Per-item amounts auto-recalculate when qty or rate are edited
+6. Validate: typecheck, lint, build pass
