@@ -28,10 +28,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, FileText, Printer, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Invoice } from "../backend.d";
+import type { EditableInvoiceData } from "../components/InvoicePreview";
 import InvoicePreview from "../components/InvoicePreview";
 import {
   useDeleteInvoice,
@@ -39,6 +41,7 @@ import {
   useGetAllInvoices,
   useGetAllMedicines,
   useGetFirmSettings,
+  useSetDoctorMedicinePrice,
 } from "../hooks/useQueries";
 import { downloadElementAsJpeg } from "../utils/invoiceDownload";
 
@@ -52,6 +55,8 @@ export default function InvoicesPage() {
   const { data: doctors = [] } = useGetAllDoctors();
   const { data: medicines = [] } = useGetAllMedicines();
   const deleteInvoice = useDeleteInvoice();
+  const setDoctorMedicinePrice = useSetDoctorMedicinePrice();
+  const queryClient = useQueryClient();
 
   const sortedInvoices = [...invoices].sort(
     (a, b) => Number(b.invoiceNumber) - Number(a.invoiceNumber),
@@ -70,11 +75,19 @@ export default function InvoicesPage() {
   };
 
   const handleDownloadJpeg = async () => {
-    if (!selectedInvoice) return;
+    if (!selectedInvoice) {
+      toast.error("No invoice selected");
+      return;
+    }
 
-    const invoiceContainer = document.querySelector(".invoice-print-container");
+    // Target the exact invoice content element (not the outer wrapper)
+    const invoiceContainer = document.querySelector(
+      ".invoice-container",
+    ) as HTMLElement | null;
     if (!invoiceContainer) {
-      toast.error("Invoice preview not found");
+      toast.error(
+        "Invoice preview not found. Please open the invoice preview first.",
+      );
       return;
     }
 
@@ -85,10 +98,13 @@ export default function InvoicesPage() {
       const doctorName = sanitizeFilename(selectedInvoice.doctorName);
       const filename = `Invoice-${invoiceNumber}-${doctorName}.jpeg`;
 
-      await downloadElementAsJpeg(invoiceContainer as HTMLElement, filename);
+      await downloadElementAsJpeg(invoiceContainer, filename);
       toast.success("Invoice downloaded successfully!");
     } catch (error) {
-      toast.error(`Failed to download invoice: ${(error as Error).message}`);
+      console.error("Invoice generation failed:", error);
+      toast.error(
+        `Unable to download invoice: ${(error as Error).message}. Please try again.`,
+      );
     }
   };
 
@@ -99,13 +115,59 @@ export default function InvoicesPage() {
   const handleConfirmDelete = async () => {
     if (!deleteInvoiceNumber) return;
 
+    const invoiceToDelete = sortedInvoices.find(
+      (inv) => inv.invoiceNumber === deleteInvoiceNumber,
+    );
+    if (!invoiceToDelete) return;
+
     try {
-      await deleteInvoice.mutateAsync(deleteInvoiceNumber);
-      toast.success("Invoice deleted successfully");
+      await deleteInvoice.mutateAsync({
+        invoiceNumber: deleteInvoiceNumber,
+        items: invoiceToDelete.items.map((item) => ({
+          medicineName: item.medicineName,
+          quantity: item.quantity,
+        })),
+      });
+      toast.success("Invoice deleted and stock restored");
       setDeleteInvoiceNumber(null);
+      if (selectedInvoice?.invoiceNumber === deleteInvoiceNumber) {
+        setSelectedInvoice(null);
+      }
     } catch (error) {
       toast.error(`Failed to delete invoice: ${(error as Error).message}`);
     }
+  };
+
+  const handleSaveInvoice = async (data: EditableInvoiceData) => {
+    if (!selectedInvoice) return;
+
+    // Update doctor pricing for any rates that changed
+    if (selectedInvoice.doctorName) {
+      const priceUpdates = data.items
+        .map((item, i) => {
+          const originalRate = Number(
+            selectedInvoice.items[i]?.sellingPrice ?? 0,
+          );
+          return { item, originalRate };
+        })
+        .filter(({ item, originalRate }) => item.rate !== originalRate);
+
+      await Promise.all(
+        priceUpdates.map(({ item }) =>
+          setDoctorMedicinePrice.mutateAsync({
+            doctorName: selectedInvoice.doctorName,
+            medicineName: item.medicineName,
+            price: BigInt(Math.round(item.rate)),
+          }),
+        ),
+      );
+
+      if (priceUpdates.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ["doctors"] });
+      }
+    }
+
+    toast.success("Invoice changes saved. Doctor pricing updated.");
   };
 
   return (
@@ -238,6 +300,7 @@ export default function InvoicesPage() {
               firmSettings={firmSettings}
               medicines={medicines}
               doctors={doctors}
+              onSave={handleSaveInvoice}
             />
           )}
         </DialogContent>

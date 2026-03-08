@@ -1,3 +1,4 @@
+import { Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import type {
   FirmSettings,
@@ -84,8 +85,8 @@ export function buildEditableInvoice(
   const items: EditableItem[] = invoice.items.map((item: InvoiceItem) => {
     const qty = Number(item.quantity);
     const rate = Number(item.sellingPrice);
-    const amount = Number(item.amount);
-    const gst = Math.round((amount * 5) / 100);
+    const amount = Number.parseFloat((qty * rate).toFixed(2));
+    const gst = Number.parseFloat(((amount * 5) / 100).toFixed(2));
     const medicine = medicines.find((m) => m.name === item.medicineName);
     const mrp = medicine ? Number(medicine.mrp) : null;
     return {
@@ -98,11 +99,13 @@ export function buildEditableInvoice(
       mrp,
       amount,
       gst,
-      total: amount + gst,
+      total: Number.parseFloat((amount + gst).toFixed(2)),
     };
   });
 
-  const totalGst = Math.round(Number(invoice.gstAmount));
+  const totalGst = Number.parseFloat(
+    ((items.reduce((s, i) => s + i.amount, 0) * 5) / 100).toFixed(2),
+  );
 
   return {
     firmName: firmSettings?.name || "PharmaCare",
@@ -129,6 +132,7 @@ interface InvoicePreviewProps {
   firmSettings: FirmSettings | undefined;
   medicines: Medicine[];
   doctors: { name: string; shippingAddress: string }[];
+  onSave?: (data: EditableInvoiceData) => Promise<void>;
 }
 
 export default function InvoicePreview({
@@ -136,10 +140,12 @@ export default function InvoicePreview({
   firmSettings,
   medicines,
   doctors,
+  onSave,
 }: InvoicePreviewProps) {
   const [data, setData] = useState<EditableInvoiceData>(() =>
     buildEditableInvoice(invoice, firmSettings, medicines, doctors),
   );
+  const [isSaving, setIsSaving] = useState(false);
 
   // Reset when invoice changes
   useEffect(() => {
@@ -177,31 +183,31 @@ export default function InvoicePreview({
       } else if (field === "quantity") {
         const qty = Number.parseFloat(rawValue) || 0;
         item.quantity = qty;
-        const amount = Math.round(qty * item.rate);
+        const amount = Number.parseFloat((qty * item.rate).toFixed(2));
         item.amount = amount;
-        const gst = Math.round((amount * 5) / 100);
+        const gst = Number.parseFloat(((amount * 5) / 100).toFixed(2));
         item.gst = gst;
-        item.total = amount + gst;
+        item.total = Number.parseFloat((amount + gst).toFixed(2));
       } else if (field === "rate") {
         const rate = Number.parseFloat(rawValue) || 0;
         item.rate = rate;
-        const amount = Math.round(item.quantity * rate);
+        const amount = Number.parseFloat((item.quantity * rate).toFixed(2));
         item.amount = amount;
-        const gst = Math.round((amount * 5) / 100);
+        const gst = Number.parseFloat(((amount * 5) / 100).toFixed(2));
         item.gst = gst;
-        item.total = amount + gst;
+        item.total = Number.parseFloat((amount + gst).toFixed(2));
       } else if (field === "mrp") {
         item.mrp = Number.parseFloat(rawValue) || 0;
       } else if (field === "gst") {
         const gst = Number.parseFloat(rawValue) || 0;
         item.gst = gst;
-        item.total = item.amount + gst;
+        item.total = Number.parseFloat((item.amount + gst).toFixed(2));
       } else if (field === "amount") {
         const amount = Number.parseFloat(rawValue) || 0;
         item.amount = amount;
-        const gst = Math.round((amount * 5) / 100);
+        const gst = Number.parseFloat(((amount * 5) / 100).toFixed(2));
         item.gst = gst;
-        item.total = amount + gst;
+        item.total = Number.parseFloat((amount + gst).toFixed(2));
       }
 
       items[index] = item;
@@ -226,6 +232,22 @@ export default function InvoicePreview({
     <div className="invoice-print-container">
       <style>
         {`
+          /* Ensure invoice container inputs never clip text */
+          .invoice-print-container input,
+          .invoice-print-container textarea {
+            box-sizing: border-box !important;
+            overflow: visible !important;
+            white-space: nowrap !important;
+            line-height: 1.5 !important;
+          }
+          /* Inline edit hover hint */
+          .invoice-editable-cell input:hover {
+            background-color: rgba(0,0,0,0.03) !important;
+          }
+          .invoice-editable-cell input:focus {
+            border-bottom: 1.5px solid #374151 !important;
+            background-color: rgba(0,0,0,0.04) !important;
+          }
           @media print {
             html, body {
               margin: 0 !important;
@@ -286,23 +308,18 @@ export default function InvoicePreview({
             .print\\:hidden {
               display: none !important;
             }
-            /* Hide focus indicators when printing */
             input {
               border-bottom: none !important;
             }
           }
-          /* Inline edit hover hint */
-          .invoice-editable-cell input:hover {
-            background-color: rgba(0,0,0,0.03) !important;
-          }
-          .invoice-editable-cell input:focus {
-            border-bottom: 1.5px solid #374151 !important;
-            background-color: rgba(0,0,0,0.04) !important;
-          }
         `}
       </style>
 
-      <div className="bg-white text-black p-8 space-y-6">
+      {/* invoice-container is the exact element captured for JPEG download */}
+      <div
+        className="invoice-container bg-white text-black p-8 space-y-6"
+        style={{ boxSizing: "border-box", background: "white", color: "black" }}
+      >
         {/* Header */}
         <div className="text-center border-b-2 border-black pb-4">
           <h1 className="text-3xl font-bold mb-2 invoice-editable-cell">
@@ -532,7 +549,7 @@ export default function InvoicePreview({
                       fontWeight: 600,
                     }}
                   >
-                    ₹{item.total.toLocaleString("en-IN")}
+                    ₹{item.total.toFixed(2)}
                   </td>
                 </tr>
               ))}
@@ -548,7 +565,7 @@ export default function InvoicePreview({
                 <td
                   style={{ ...cellStyle, textAlign: "right", fontWeight: 600 }}
                 >
-                  ₹{subtotal.toLocaleString("en-IN")}
+                  ₹{subtotal.toFixed(2)}
                 </td>
                 <td
                   style={{ ...cellStyle, textAlign: "right", fontWeight: 600 }}
@@ -574,7 +591,7 @@ export default function InvoicePreview({
                     fontWeight: 700,
                   }}
                 >
-                  ₹{grandTotal.toLocaleString("en-IN")}
+                  ₹{grandTotal.toFixed(2)}
                 </td>
               </tr>
             </tfoot>
@@ -589,7 +606,7 @@ export default function InvoicePreview({
           <div className="flex justify-between items-center">
             <div className="space-y-1">
               <p className="text-sm">
-                <strong>Subtotal:</strong> ₹{subtotal.toLocaleString("en-IN")}
+                <strong>Subtotal:</strong> ₹{subtotal.toFixed(2)}
               </p>
               <p className="text-sm flex items-center gap-1">
                 <strong>GST (5%):</strong>
@@ -613,11 +630,46 @@ export default function InvoicePreview({
                 Grand Total
               </p>
               <p className="text-3xl font-bold" style={{ color: "black" }}>
-                ₹{grandTotal.toLocaleString("en-IN")}
+                ₹{grandTotal.toFixed(2)}
               </p>
             </div>
           </div>
         </div>
+
+        {/* Save Changes button — hidden when printing */}
+        {onSave && (
+          <div className="print:hidden flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={async () => {
+                setIsSaving(true);
+                try {
+                  await onSave(data);
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+              disabled={isSaving}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 20px",
+                backgroundColor: isSaving ? "#6b7280" : "#16a34a",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "14px",
+                fontWeight: 600,
+                cursor: isSaving ? "not-allowed" : "pointer",
+                transition: "background-color 0.2s",
+              }}
+            >
+              <Save size={16} />
+              {isSaving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        )}
 
         {/* Footer */}
         <div

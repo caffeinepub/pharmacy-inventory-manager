@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Banknote,
   CreditCard,
@@ -39,6 +40,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Invoice } from "../backend.d";
+import type { EditableInvoiceData } from "../components/InvoicePreview";
 import InvoicePreview from "../components/InvoicePreview";
 import {
   useCreateInvoice,
@@ -47,6 +49,7 @@ import {
   useGetDoctorMedicinePrice,
   useGetFirmSettings,
   useGetInvoice,
+  useSetDoctorMedicinePrice,
 } from "../hooks/useQueries";
 
 import { downloadElementAsJpeg } from "../utils/invoiceDownload";
@@ -80,6 +83,8 @@ export default function BillingPage() {
   const createInvoice = useCreateInvoice();
   const getDoctorMedicinePrice = useGetDoctorMedicinePrice();
   const getInvoice = useGetInvoice();
+  const setDoctorMedicinePrice = useSetDoctorMedicinePrice();
+  const queryClient = useQueryClient();
 
   const handleAddToCart = async () => {
     if (!selectedMedicine || !quantity || Number(quantity) <= 0) {
@@ -242,11 +247,19 @@ export default function BillingPage() {
   };
 
   const handleDownloadJpeg = async () => {
-    if (!previewInvoice) return;
+    if (!previewInvoice) {
+      toast.error("No invoice selected");
+      return;
+    }
 
-    const invoiceContainer = document.querySelector(".invoice-print-container");
+    // Target the exact invoice content element (not the outer wrapper)
+    const invoiceContainer = document.querySelector(
+      ".invoice-container",
+    ) as HTMLElement | null;
     if (!invoiceContainer) {
-      toast.error("Invoice preview not found");
+      toast.error(
+        "Invoice preview not found. Please open the invoice preview first.",
+      );
       return;
     }
 
@@ -257,11 +270,46 @@ export default function BillingPage() {
       const doctorName = sanitizeFilename(previewInvoice.doctorName);
       const filename = `Invoice-${invoiceNumber}-${doctorName}.jpeg`;
 
-      await downloadElementAsJpeg(invoiceContainer as HTMLElement, filename);
+      await downloadElementAsJpeg(invoiceContainer, filename);
       toast.success("Invoice downloaded successfully!");
     } catch (error) {
-      toast.error(`Failed to download invoice: ${(error as Error).message}`);
+      console.error("Invoice generation failed:", error);
+      toast.error(
+        `Unable to download invoice: ${(error as Error).message}. Please try again.`,
+      );
     }
+  };
+
+  const handleSaveInvoice = async (data: EditableInvoiceData) => {
+    if (!previewInvoice) return;
+
+    // Update doctor pricing for any rates that changed
+    if (previewInvoice.doctorName) {
+      const priceUpdates = data.items
+        .map((item, i) => {
+          const originalRate = Number(
+            previewInvoice.items[i]?.sellingPrice ?? 0,
+          );
+          return { item, originalRate };
+        })
+        .filter(({ item, originalRate }) => item.rate !== originalRate);
+
+      await Promise.all(
+        priceUpdates.map(({ item }) =>
+          setDoctorMedicinePrice.mutateAsync({
+            doctorName: previewInvoice.doctorName,
+            medicineName: item.medicineName,
+            price: BigInt(Math.round(item.rate)),
+          }),
+        ),
+      );
+
+      if (priceUpdates.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ["doctors"] });
+      }
+    }
+
+    toast.success("Invoice changes saved. Doctor pricing updated.");
   };
 
   const subtotal = billItems.reduce((sum, item) => sum + item.amount, 0);
@@ -593,6 +641,7 @@ export default function BillingPage() {
               firmSettings={firmSettings}
               medicines={medicines}
               doctors={doctors}
+              onSave={handleSaveInvoice}
             />
           )}
         </DialogContent>

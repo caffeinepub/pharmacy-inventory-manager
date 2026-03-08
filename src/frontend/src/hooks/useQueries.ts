@@ -331,12 +331,22 @@ export function useDeleteInvoice() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (invoiceNumber: bigint) => {
+    mutationFn: async (params: {
+      invoiceNumber: bigint;
+      items: Array<{ medicineName: string; quantity: bigint }>;
+    }) => {
       if (!actor) throw new Error("Actor not initialized");
-      return actor.deleteInvoice(invoiceNumber);
+      // Restore stock for each billed item (negative quantity = add back to stock)
+      await Promise.all(
+        params.items.map((item) =>
+          actor.reduceMedicineStock(item.medicineName, -item.quantity),
+        ),
+      );
+      return actor.deleteInvoice(params.invoiceNumber);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["medicines"] });
     },
   });
 }

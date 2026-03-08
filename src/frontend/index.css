@@ -95,5 +95,17 @@
   textarea,
   select {
     color: black !important;
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 14px;
+    line-height: 1.5;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: visible;
+  }
+
+  textarea {
+    white-space: pre-wrap;
+    overflow: auto;
   }
 }
