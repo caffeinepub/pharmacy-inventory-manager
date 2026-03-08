@@ -15,6 +15,7 @@ interface InlineEditProps {
   type?: string;
   style?: React.CSSProperties;
   textAlign?: "left" | "right" | "center";
+  multiline?: boolean;
 }
 
 function InlineEdit({
@@ -24,7 +25,30 @@ function InlineEdit({
   type = "text",
   style,
   textAlign = "left",
+  multiline = false,
 }: InlineEditProps) {
+  if (multiline) {
+    return (
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={2}
+        className={`bg-transparent border-0 outline-none p-0 m-0 w-full focus:border-b focus:border-gray-500 resize-none ${className}`}
+        style={{
+          color: "black",
+          textAlign,
+          fontFamily: "inherit",
+          fontSize: "inherit",
+          fontWeight: "inherit",
+          lineHeight: "1.4",
+          wordBreak: "break-word",
+          whiteSpace: "pre-wrap",
+          overflow: "visible",
+          ...style,
+        }}
+      />
+    );
+  }
   return (
     <input
       type={type}
@@ -38,6 +62,8 @@ function InlineEdit({
         fontSize: "inherit",
         fontWeight: "inherit",
         lineHeight: "inherit",
+        boxSizing: "border-box",
+        overflow: "visible",
         ...style,
       }}
     />
@@ -215,36 +241,64 @@ export default function InvoicePreview({
     });
   };
 
+  // Half A4 = A5 portrait: 148mm wide x 210mm tall
+  // We render at a fixed pixel width (559px ≈ 148mm at 96dpi) so
+  // the download capture matches the preview exactly.
+  const INVOICE_WIDTH_PX = 560;
+
   const cellStyle: React.CSSProperties = {
     color: "black",
     borderColor: "black",
-    padding: "4px 6px",
+    padding: "3px 5px",
     border: "1px solid black",
+    verticalAlign: "top",
+    wordBreak: "break-word",
+    whiteSpace: "normal",
+    overflow: "visible",
   };
 
   const headerCellStyle: React.CSSProperties = {
     ...cellStyle,
     backgroundColor: "#e5e7eb",
     fontWeight: 600,
+    whiteSpace: "nowrap",
+    verticalAlign: "middle",
   };
 
   return (
     <div className="invoice-print-container">
       <style>
         {`
-          /* Ensure invoice container inputs never clip text */
+          /* Prevent inputs from clipping text */
           .invoice-print-container input,
           .invoice-print-container textarea {
             box-sizing: border-box !important;
             overflow: visible !important;
-            white-space: nowrap !important;
-            line-height: 1.5 !important;
+            line-height: 1.4 !important;
+          }
+          /* Ensure table cells allow text to wrap */
+          .invoice-print-container td,
+          .invoice-print-container th {
+            word-break: break-word !important;
+            white-space: normal !important;
+            overflow: visible !important;
+          }
+          /* Medicine name column specifically allows 2-line wrap */
+          .invoice-medicine-name-cell {
+            min-width: 80px;
+            max-width: 120px;
+          }
+          /* Narrow columns keep content visible */
+          .invoice-narrow-cell {
+            min-width: 48px;
           }
           /* Inline edit hover hint */
-          .invoice-editable-cell input:hover {
+          .invoice-editable-cell input:hover,
+          .invoice-editable-cell textarea:hover {
             background-color: rgba(0,0,0,0.03) !important;
           }
-          .invoice-editable-cell input:focus {
+          .invoice-editable-cell input:focus,
+          .invoice-editable-cell textarea:focus {
             border-bottom: 1.5px solid #374151 !important;
             background-color: rgba(0,0,0,0.04) !important;
           }
@@ -271,9 +325,8 @@ export default function InvoicePreview({
             }
             .invoice-print-container {
               display: block !important;
-              width: 210mm !important;
-              min-height: 297mm !important;
-              padding: 15mm !important;
+              width: 148mm !important;
+              padding: 8mm !important;
               box-sizing: border-box !important;
               background: white !important;
               color: black !important;
@@ -283,176 +336,257 @@ export default function InvoicePreview({
               display: revert !important;
             }
             @page {
-              size: A4 portrait;
+              size: A5 portrait;
               margin: 0;
             }
             .invoice-print-container h1 {
-              font-size: 22px !important;
+              font-size: 16px !important;
             }
             .invoice-print-container p,
             .invoice-print-container td,
             .invoice-print-container th {
-              font-size: 10px !important;
+              font-size: 8px !important;
             }
             .invoice-print-container table {
-              font-size: 9px !important;
+              font-size: 7px !important;
               width: 100% !important;
             }
             .invoice-print-container .text-3xl {
-              font-size: 18px !important;
+              font-size: 16px !important;
             }
             .invoice-print-container table td,
             .invoice-print-container table th {
-              padding: 1.5mm !important;
+              padding: 1mm 1.5mm !important;
             }
             .print\\:hidden {
               display: none !important;
             }
-            input {
+            input, textarea {
               border-bottom: none !important;
             }
           }
         `}
       </style>
 
-      {/* invoice-container is the exact element captured for JPEG download */}
+      {/* invoice-container is captured for JPEG download — fixed pixel width = half A4 */}
       <div
-        className="invoice-container bg-white text-black p-8 space-y-6"
-        style={{ boxSizing: "border-box", background: "white", color: "black" }}
+        className="invoice-container bg-white text-black"
+        style={{
+          width: `${INVOICE_WIDTH_PX}px`,
+          boxSizing: "border-box",
+          background: "white",
+          color: "black",
+          padding: "20px 24px",
+          fontFamily: "Arial, Helvetica, sans-serif",
+          fontSize: "11px",
+          lineHeight: "1.4",
+          margin: "0 auto",
+        }}
       >
         {/* Header */}
-        <div className="text-center border-b-2 border-black pb-4">
-          <h1 className="text-3xl font-bold mb-2 invoice-editable-cell">
+        <div
+          style={{
+            textAlign: "center",
+            borderBottom: "2px solid black",
+            paddingBottom: "10px",
+            marginBottom: "10px",
+          }}
+        >
+          <div
+            className="invoice-editable-cell"
+            style={{ marginBottom: "4px" }}
+          >
             <InlineEdit
               value={data.firmName}
               onChange={(v) => setField("firmName", v)}
-              className="text-center text-3xl font-bold"
-              style={{ textAlign: "center" }}
+              style={{
+                textAlign: "center",
+                fontSize: "18px",
+                fontWeight: "bold",
+                color: "black",
+              }}
               textAlign="center"
             />
-          </h1>
-          <p className="text-sm invoice-editable-cell">
+          </div>
+          <div
+            className="invoice-editable-cell"
+            style={{ marginBottom: "4px" }}
+          >
             <InlineEdit
               value={data.firmAddress}
               onChange={(v) => setField("firmAddress", v)}
-              className="text-sm text-center"
+              style={{ textAlign: "center", fontSize: "10px" }}
               textAlign="center"
             />
-          </p>
-          <div className="flex justify-center gap-6 mt-2 text-sm flex-wrap">
-            <p className="flex items-center gap-1">
-              <strong>GSTIN:</strong>
-              <span className="invoice-editable-cell inline-block min-w-[80px]">
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: "16px",
+              flexWrap: "wrap",
+              fontSize: "10px",
+              marginBottom: "4px",
+            }}
+          >
+            <span>
+              <strong>GSTIN:</strong>{" "}
+              <span
+                className="invoice-editable-cell"
+                style={{ display: "inline-block", minWidth: "80px" }}
+              >
                 <InlineEdit
                   value={data.firmGstin}
                   onChange={(v) => setField("firmGstin", v)}
-                  className="text-sm"
                 />
               </span>
-            </p>
-            <p className="flex items-center gap-1">
-              <strong>DIL No:</strong>
-              <span className="invoice-editable-cell inline-block min-w-[60px]">
+            </span>
+            <span>
+              <strong>DIL No:</strong>{" "}
+              <span
+                className="invoice-editable-cell"
+                style={{ display: "inline-block", minWidth: "60px" }}
+              >
                 <InlineEdit
                   value={data.firmDilNumber}
                   onChange={(v) => setField("firmDilNumber", v)}
-                  className="text-sm"
                 />
               </span>
-            </p>
-            <p className="flex items-center gap-1">
-              <strong>Contact:</strong>
-              <span className="invoice-editable-cell inline-block min-w-[80px]">
+            </span>
+            <span>
+              <strong>Contact:</strong>{" "}
+              <span
+                className="invoice-editable-cell"
+                style={{ display: "inline-block", minWidth: "80px" }}
+              >
                 <InlineEdit
                   value={data.firmContact}
                   onChange={(v) => setField("firmContact", v)}
-                  className="text-sm"
                 />
               </span>
-            </p>
+            </span>
           </div>
-          {(data.shippingAddress || true) && (
-            <div className="text-sm mt-2">
-              <strong>Shipping Address:</strong>
-              <div className="invoice-editable-cell max-w-2xl mx-auto mt-1">
-                <textarea
-                  value={data.shippingAddress}
-                  onChange={(e) => setField("shippingAddress", e.target.value)}
-                  rows={2}
-                  className="bg-transparent border-0 outline-none p-0 m-0 w-full text-center text-sm focus:border-b focus:border-gray-500 resize-none"
-                  style={{
-                    color: "black",
-                    fontFamily: "inherit",
-                    fontSize: "inherit",
-                    lineHeight: "1.5",
-                  }}
-                />
-              </div>
+          <div style={{ fontSize: "10px" }}>
+            <strong>Shipping Address:</strong>
+            <div
+              className="invoice-editable-cell"
+              style={{ maxWidth: "100%", marginTop: "2px" }}
+            >
+              <InlineEdit
+                value={data.shippingAddress}
+                onChange={(v) => setField("shippingAddress", v)}
+                multiline
+                style={{ textAlign: "center", fontSize: "10px" }}
+                textAlign="center"
+              />
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Invoice Info */}
-        <div className="flex justify-between text-sm">
+        {/* Invoice Info Row */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "10px",
+            marginBottom: "10px",
+          }}
+        >
           <div>
-            <p className="mb-1 flex items-center gap-1">
-              <strong>Invoice Number:</strong>
-              <span className="invoice-editable-cell inline-block min-w-[80px]">
+            <div style={{ marginBottom: "3px" }}>
+              <strong>Invoice No:</strong>{" "}
+              <span
+                className="invoice-editable-cell"
+                style={{ display: "inline-block", minWidth: "80px" }}
+              >
                 <InlineEdit
                   value={data.invoiceNumber}
                   onChange={(v) => setField("invoiceNumber", v)}
-                  className="text-sm"
                 />
               </span>
-            </p>
-            <p className="flex items-center gap-1">
-              <strong>Date:</strong>
-              <span className="invoice-editable-cell inline-block min-w-[120px]">
+            </div>
+            <div>
+              <strong>Date:</strong>{" "}
+              <span
+                className="invoice-editable-cell"
+                style={{ display: "inline-block", minWidth: "120px" }}
+              >
                 <InlineEdit
                   value={data.date}
                   onChange={(v) => setField("date", v)}
-                  className="text-sm"
                 />
               </span>
-            </p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="flex items-center justify-end gap-1">
-              <strong>Doctor:</strong>
-              <span className="invoice-editable-cell inline-block min-w-[100px]">
-                <InlineEdit
-                  value={data.doctorName}
-                  onChange={(v) => setField("doctorName", v)}
-                  className="text-sm"
-                  textAlign="right"
-                />
-              </span>
-            </p>
+          <div style={{ textAlign: "right" }}>
+            <strong>Doctor:</strong>{" "}
+            <span
+              className="invoice-editable-cell"
+              style={{ display: "inline-block", minWidth: "100px" }}
+            >
+              <InlineEdit
+                value={data.doctorName}
+                onChange={(v) => setField("doctorName", v)}
+                textAlign="right"
+              />
+            </span>
           </div>
         </div>
 
         {/* Items Table */}
-        <div style={{ border: "1px solid black" }}>
+        <div
+          style={{
+            border: "1px solid black",
+            marginBottom: "10px",
+            overflow: "visible",
+          }}
+        >
           <table
-            className="w-full text-sm"
-            style={{ borderCollapse: "collapse" }}
+            style={{
+              borderCollapse: "collapse",
+              width: "100%",
+              fontSize: "9px",
+              tableLayout: "fixed",
+            }}
           >
+            <colgroup>
+              {/* S.No */}
+              <col style={{ width: "22px" }} />
+              {/* Medicine Name — widest column, wraps to 2 lines */}
+              <col style={{ width: "110px" }} />
+              {/* Batch */}
+              <col style={{ width: "52px" }} />
+              {/* Expiry */}
+              <col style={{ width: "50px" }} />
+              {/* HSN */}
+              <col style={{ width: "46px" }} />
+              {/* Qty */}
+              <col style={{ width: "28px" }} />
+              {/* Rate */}
+              <col style={{ width: "36px" }} />
+              {/* MRP */}
+              <col style={{ width: "36px" }} />
+              {/* Amount */}
+              <col style={{ width: "40px" }} />
+              {/* GST */}
+              <col style={{ width: "36px" }} />
+              {/* Total */}
+              <col style={{ width: "42px" }} />
+            </colgroup>
             <thead>
               <tr>
                 <th style={headerCellStyle}>S.No</th>
-                <th style={headerCellStyle}>Medicine Name</th>
+                <th style={{ ...headerCellStyle, textAlign: "left" }}>
+                  Medicine Name
+                </th>
                 <th style={headerCellStyle}>Batch</th>
                 <th style={headerCellStyle}>Expiry</th>
-                <th style={headerCellStyle}>HSN Code</th>
+                <th style={headerCellStyle}>HSN</th>
                 <th style={{ ...headerCellStyle, textAlign: "right" }}>Qty</th>
                 <th style={{ ...headerCellStyle, textAlign: "right" }}>Rate</th>
                 <th style={{ ...headerCellStyle, textAlign: "right" }}>MRP</th>
-                <th style={{ ...headerCellStyle, textAlign: "right" }}>
-                  Amount
-                </th>
-                <th style={{ ...headerCellStyle, textAlign: "right" }}>
-                  GST 5%
-                </th>
+                <th style={{ ...headerCellStyle, textAlign: "right" }}>Amt</th>
+                <th style={{ ...headerCellStyle, textAlign: "right" }}>GST</th>
                 <th style={{ ...headerCellStyle, textAlign: "right" }}>
                   Total
                 </th>
@@ -462,29 +596,56 @@ export default function InvoicePreview({
               {data.items.map((item, index) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: invoice items don't have stable IDs
                 <tr key={`inv-edit-item-${index}`}>
-                  <td style={cellStyle}>{index + 1}</td>
-                  <td style={cellStyle} className="invoice-editable-cell">
+                  <td style={{ ...cellStyle, textAlign: "center" }}>
+                    {index + 1}
+                  </td>
+                  {/* Medicine name: allows 2-line wrap */}
+                  <td
+                    style={{ ...cellStyle, textAlign: "left" }}
+                    className="invoice-editable-cell invoice-medicine-name-cell"
+                  >
                     <InlineEdit
                       value={item.medicineName}
                       onChange={(v) => updateItem(index, "medicineName", v)}
+                      style={{
+                        whiteSpace: "normal",
+                        wordBreak: "break-word",
+                        overflow: "visible",
+                        lineHeight: "1.3",
+                      }}
                     />
                   </td>
-                  <td style={cellStyle} className="invoice-editable-cell">
+                  {/* Batch */}
+                  <td
+                    style={cellStyle}
+                    className="invoice-editable-cell invoice-narrow-cell"
+                  >
                     <InlineEdit
                       value={item.batchNumber}
                       onChange={(v) => updateItem(index, "batchNumber", v)}
+                      style={{ wordBreak: "break-all" }}
                     />
                   </td>
-                  <td style={cellStyle} className="invoice-editable-cell">
+                  {/* Expiry */}
+                  <td
+                    style={cellStyle}
+                    className="invoice-editable-cell invoice-narrow-cell"
+                  >
                     <InlineEdit
                       value={item.expiryDate}
                       onChange={(v) => updateItem(index, "expiryDate", v)}
+                      style={{ wordBreak: "break-all" }}
                     />
                   </td>
-                  <td style={cellStyle} className="invoice-editable-cell">
+                  {/* HSN */}
+                  <td
+                    style={cellStyle}
+                    className="invoice-editable-cell invoice-narrow-cell"
+                  >
                     <InlineEdit
                       value={item.hsnCode}
                       onChange={(v) => updateItem(index, "hsnCode", v)}
+                      style={{ wordBreak: "break-all" }}
                     />
                   </td>
                   <td
@@ -558,7 +719,12 @@ export default function InvoicePreview({
               <tr style={{ backgroundColor: "#f3f4f6" }}>
                 <td
                   colSpan={8}
-                  style={{ ...cellStyle, textAlign: "right", fontWeight: 600 }}
+                  style={{
+                    ...cellStyle,
+                    textAlign: "right",
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                  }}
                 >
                   Subtotal:
                 </td>
@@ -584,12 +750,7 @@ export default function InvoicePreview({
                   />
                 </td>
                 <td
-                  style={{
-                    ...cellStyle,
-                    textAlign: "right",
-                    fontSize: "1.1em",
-                    fontWeight: 700,
-                  }}
+                  style={{ ...cellStyle, textAlign: "right", fontWeight: 700 }}
                 >
                   ₹{grandTotal.toFixed(2)}
                 </td>
@@ -600,17 +761,32 @@ export default function InvoicePreview({
 
         {/* Summary */}
         <div
-          className="p-4 border-2 border-black"
-          style={{ backgroundColor: "#f3f4f6" }}
+          style={{
+            padding: "8px 12px",
+            border: "2px solid black",
+            backgroundColor: "#f3f4f6",
+            marginBottom: "10px",
+          }}
         >
-          <div className="flex justify-between items-center">
-            <div className="space-y-1">
-              <p className="text-sm">
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ fontSize: "10px" }}>
+              <div style={{ marginBottom: "3px" }}>
                 <strong>Subtotal:</strong> ₹{subtotal.toFixed(2)}
-              </p>
-              <p className="text-sm flex items-center gap-1">
+              </div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "4px" }}
+              >
                 <strong>GST (5%):</strong>
-                <span className="invoice-editable-cell inline-block min-w-[60px]">
+                <span
+                  className="invoice-editable-cell"
+                  style={{ display: "inline-block", minWidth: "50px" }}
+                >
                   <InlineEdit
                     value={activeGst}
                     onChange={(v) =>
@@ -620,25 +796,35 @@ export default function InvoicePreview({
                       }))
                     }
                     type="number"
-                    className="text-sm"
                   />
                 </span>
-              </p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold" style={{ color: "black" }}>
+            <div style={{ textAlign: "right" }}>
+              <div
+                style={{ fontSize: "10px", fontWeight: 600, color: "black" }}
+              >
                 Grand Total
-              </p>
-              <p className="text-3xl font-bold" style={{ color: "black" }}>
+              </div>
+              <div
+                style={{ fontSize: "20px", fontWeight: "bold", color: "black" }}
+              >
                 ₹{grandTotal.toFixed(2)}
-              </p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Save Changes button — hidden when printing */}
         {onSave && (
-          <div className="print:hidden flex justify-end pt-2">
+          <div
+            className="print:hidden"
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              paddingTop: "8px",
+            }}
+          >
             <button
               type="button"
               onClick={async () => {
@@ -673,14 +859,19 @@ export default function InvoicePreview({
 
         {/* Footer */}
         <div
-          className="text-center text-xs pt-4 border-t border-black"
-          style={{ color: "black" }}
+          style={{
+            textAlign: "center",
+            fontSize: "9px",
+            paddingTop: "8px",
+            borderTop: "1px solid black",
+            color: "black",
+          }}
         >
-          <p>Thank you for your business!</p>
-          <p className="mt-1">
+          <div>Thank you for your business!</div>
+          <div style={{ marginTop: "2px" }}>
             This is a computer-generated invoice and does not require a
             signature.
-          </p>
+          </div>
         </div>
       </div>
     </div>
