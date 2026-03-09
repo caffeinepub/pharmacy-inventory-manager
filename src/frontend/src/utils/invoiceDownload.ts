@@ -60,11 +60,8 @@ async function loadHtml2Canvas(): Promise<
 /**
  * Strips oklch color references from all elements in a subtree.
  * html2canvas does not support the oklch() color function.
- * This walks every element and removes any inline style property
- * that contains 'oklch', then injects a safe stylesheet override.
  */
 function stripOklchFromElement(root: HTMLElement): void {
-  // Walk all elements and clear inline oklch style properties
   const allElements = root.querySelectorAll("*");
   const styleProps = [
     "color",
@@ -82,7 +79,6 @@ function stripOklchFromElement(root: HTMLElement): void {
     "box-shadow",
   ];
 
-  // Also process root itself
   const elementsToProcess: Element[] = [root, ...Array.from(allElements)];
 
   for (const el of elementsToProcess) {
@@ -93,9 +89,7 @@ function stripOklchFromElement(root: HTMLElement): void {
         el.style.removeProperty(prop);
       }
     }
-    // Also check the full cssText for oklch
     if (el.style.cssText?.includes("oklch")) {
-      // Parse and rebuild without oklch properties
       const parts = el.style.cssText.split(";");
       const safe = parts.filter((p) => !p.includes("oklch"));
       el.style.cssText = safe.join(";");
@@ -105,8 +99,7 @@ function stripOklchFromElement(root: HTMLElement): void {
 
 /**
  * Injects a safe override stylesheet into the wrapper so html2canvas
- * sees only browser-safe colors. This covers Tailwind utility classes
- * that use oklch CSS variables.
+ * sees only browser-safe colors.
  */
 function injectSafeStylesheet(container: HTMLElement): void {
   const safeStyle = document.createElement("style");
@@ -156,9 +149,9 @@ function injectSafeStylesheet(container: HTMLElement): void {
 
 /**
  * Downloads a specific HTML element as a JPEG image.
- * Clones the element into a hidden off-screen container so modal/dialog
- * overflow clipping does not interfere with the capture.
- * Strips all oklch() color references so html2canvas can render correctly.
+ * - Hides Save Changes button and logo images in the output
+ * - Ensures all product rows are fully captured inside the box
+ * - Strips oklch colors for html2canvas compatibility
  */
 export async function downloadElementAsJpeg(
   element: HTMLElement,
@@ -185,36 +178,51 @@ export async function downloadElementAsJpeg(
   // does not clip the captured content.
   const clone = element.cloneNode(true) as HTMLElement;
 
-  // Copy computed styles from original to ensure the clone looks identical
   const originalStyles = window.getComputedStyle(element);
   const width = element.scrollWidth || element.offsetWidth;
-  const height = element.scrollHeight || element.offsetHeight;
 
-  const wrapper = document.createElement("div");
-  wrapper.style.cssText = `
-    position: fixed;
-    top: -99999px;
-    left: -99999px;
-    width: ${width}px;
-    height: ${height}px;
-    overflow: visible;
-    z-index: -1;
-    background: white;
-    font-family: ${originalStyles.fontFamily || "Arial, Helvetica, sans-serif"};
-    font-size: ${originalStyles.fontSize || "11px"};
-  `;
-  clone.style.cssText = `
-    width: ${width}px;
-    height: ${height}px;
-    overflow: visible;
-    background: white;
-    color: black;
-    position: relative;
-    box-sizing: border-box;
-  `;
+  // ---- Remove elements that must NOT appear in downloaded JPEG ----
 
-  // Hide all inline-edit inputs in the clone and replace with plain text spans
-  // so the download looks exactly like the printed preview (no input borders)
+  // 1. Remove Save Changes button and any print:hidden elements
+  const printHiddenEls = clone.querySelectorAll(
+    ".print\\:hidden, [class*='print:hidden']",
+  );
+  for (const el of printHiddenEls) {
+    el.remove();
+  }
+  // Also find button containing "Save" or "Save Changes" text
+  const allButtons = clone.querySelectorAll("button");
+  for (const btn of allButtons) {
+    if (
+      btn.textContent?.toLowerCase().includes("save") ||
+      btn.textContent?.toLowerCase().includes("saving")
+    ) {
+      // Remove parent div wrapper too if it's just a button container
+      const parent = btn.parentElement;
+      if (
+        parent &&
+        parent.tagName !== "TABLE" &&
+        parent.children.length === 1
+      ) {
+        parent.remove();
+      } else {
+        btn.remove();
+      }
+    }
+  }
+
+  // 2. Remove all logo/image elements
+  const images = clone.querySelectorAll("img");
+  for (const img of images) {
+    img.remove();
+  }
+  // Remove SVG logos
+  const svgs = clone.querySelectorAll("svg");
+  for (const svg of svgs) {
+    svg.remove();
+  }
+
+  // ---- Replace inputs/textareas with plain text so download looks clean ----
   const inputs = clone.querySelectorAll("input");
   for (const input of inputs) {
     const span = document.createElement("span");
@@ -230,7 +238,6 @@ export async function downloadElementAsJpeg(
     input.replaceWith(span);
   }
 
-  // Replace textareas too
   const textareas = clone.querySelectorAll("textarea");
   for (const textarea of textareas) {
     const span = document.createElement("span");
@@ -245,22 +252,47 @@ export async function downloadElementAsJpeg(
     textarea.replaceWith(span);
   }
 
-  // CRITICAL: Remove all style elements (Tailwind CSS) from the clone
-  // that contain oklch references — these crash html2canvas
+  // Remove style elements that may contain oklch
   const styleElements = clone.querySelectorAll("style");
   for (const styleEl of styleElements) {
     styleEl.remove();
   }
 
+  // ---- Build off-screen wrapper ----
+  // Don't fix height — let the clone expand to its natural height so all rows fit
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = `
+    position: fixed;
+    top: -99999px;
+    left: -99999px;
+    width: ${width}px;
+    overflow: visible;
+    z-index: -1;
+    background: white;
+    font-family: ${originalStyles.fontFamily || "Arial, Helvetica, sans-serif"};
+    font-size: ${originalStyles.fontSize || "11px"};
+  `;
+  clone.style.cssText = `
+    width: ${width}px;
+    overflow: visible;
+    background: white;
+    color: black;
+    position: relative;
+    box-sizing: border-box;
+  `;
+
   wrapper.appendChild(clone);
 
-  // Strip inline oklch styles from all elements
+  // Strip inline oklch styles
   stripOklchFromElement(clone);
 
-  // Inject a safe stylesheet override AFTER stripping (so it wins)
+  // Inject safe stylesheet
   injectSafeStylesheet(wrapper);
 
   document.body.appendChild(wrapper);
+
+  // Measure natural height AFTER attaching to DOM (so layout is computed)
+  const naturalHeight = clone.scrollHeight || clone.offsetHeight;
 
   let canvas: HTMLCanvasElement;
   try {
@@ -270,13 +302,12 @@ export async function downloadElementAsJpeg(
       useCORS: true,
       logging: false,
       width,
-      height,
+      height: naturalHeight,
       scrollX: 0,
       scrollY: 0,
       allowTaint: false,
       foreignObjectRendering: false,
       onclone: (clonedDoc: Document) => {
-        // Extra pass: strip any remaining oklch from the cloned document
         const clonedBody = clonedDoc.body;
         if (clonedBody) {
           const allInClone = clonedBody.querySelectorAll("*");
@@ -288,7 +319,6 @@ export async function downloadElementAsJpeg(
               el.style.cssText = safe.join(";");
             }
           }
-          // Also inject safe styles into cloned document head
           const safeStyle = clonedDoc.createElement("style");
           safeStyle.textContent = `
             * { background-color: white !important; color: black !important; border-color: #cccccc !important; box-shadow: none !important; }
