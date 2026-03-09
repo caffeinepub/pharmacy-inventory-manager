@@ -2,6 +2,9 @@
  * Captures an HTML element as a JPEG image and triggers download.
  * The captured output matches the on-screen preview exactly.
  * Uses a cloned node rendered off-screen to avoid Dialog/modal clipping issues.
+ *
+ * IMPORTANT: This utility strips all oklch() color references from the clone
+ * before passing to html2canvas, which does not support oklch().
  */
 
 // Type declaration for dynamically loaded html2canvas
@@ -25,6 +28,7 @@ declare global {
         foreignObjectRendering?: boolean;
         removeContainer?: boolean;
         allowTaint?: boolean;
+        onclone?: (clonedDoc: Document) => void;
       },
     ) => Promise<HTMLCanvasElement>;
   }
@@ -54,9 +58,107 @@ async function loadHtml2Canvas(): Promise<
 }
 
 /**
+ * Strips oklch color references from all elements in a subtree.
+ * html2canvas does not support the oklch() color function.
+ * This walks every element and removes any inline style property
+ * that contains 'oklch', then injects a safe stylesheet override.
+ */
+function stripOklchFromElement(root: HTMLElement): void {
+  // Walk all elements and clear inline oklch style properties
+  const allElements = root.querySelectorAll("*");
+  const styleProps = [
+    "color",
+    "background",
+    "background-color",
+    "border-color",
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
+    "outline-color",
+    "text-decoration-color",
+    "fill",
+    "stroke",
+    "box-shadow",
+  ];
+
+  // Also process root itself
+  const elementsToProcess: Element[] = [root, ...Array.from(allElements)];
+
+  for (const el of elementsToProcess) {
+    if (!(el instanceof HTMLElement)) continue;
+    for (const prop of styleProps) {
+      const val = el.style.getPropertyValue(prop);
+      if (val?.includes("oklch")) {
+        el.style.removeProperty(prop);
+      }
+    }
+    // Also check the full cssText for oklch
+    if (el.style.cssText?.includes("oklch")) {
+      // Parse and rebuild without oklch properties
+      const parts = el.style.cssText.split(";");
+      const safe = parts.filter((p) => !p.includes("oklch"));
+      el.style.cssText = safe.join(";");
+    }
+  }
+}
+
+/**
+ * Injects a safe override stylesheet into the wrapper so html2canvas
+ * sees only browser-safe colors. This covers Tailwind utility classes
+ * that use oklch CSS variables.
+ */
+function injectSafeStylesheet(container: HTMLElement): void {
+  const safeStyle = document.createElement("style");
+  safeStyle.textContent = `
+    * {
+      background-color: white !important;
+      color: black !important;
+      border-color: #cccccc !important;
+      outline-color: #cccccc !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
+    table {
+      border-color: black !important;
+    }
+    th, td {
+      border-color: black !important;
+    }
+    th {
+      background-color: #e5e7eb !important;
+      color: black !important;
+    }
+    tfoot tr {
+      background-color: #f3f4f6 !important;
+    }
+    tfoot tr td {
+      background-color: #f3f4f6 !important;
+    }
+    .text-green-600, .text-green-700 {
+      color: #16a34a !important;
+    }
+    .text-red-600, .text-destructive {
+      color: #dc2626 !important;
+    }
+    .bg-white {
+      background-color: #ffffff !important;
+    }
+    .text-black {
+      color: #000000 !important;
+    }
+    strong, b {
+      color: black !important;
+    }
+  `;
+  container.insertBefore(safeStyle, container.firstChild);
+}
+
+/**
  * Downloads a specific HTML element as a JPEG image.
  * Clones the element into a hidden off-screen container so modal/dialog
  * overflow clipping does not interfere with the capture.
+ * Strips all oklch() color references so html2canvas can render correctly.
  */
 export async function downloadElementAsJpeg(
   element: HTMLElement,
@@ -98,8 +200,8 @@ export async function downloadElementAsJpeg(
     overflow: visible;
     z-index: -1;
     background: white;
-    font-family: ${originalStyles.fontFamily};
-    font-size: ${originalStyles.fontSize};
+    font-family: ${originalStyles.fontFamily || "Arial, Helvetica, sans-serif"};
+    font-size: ${originalStyles.fontSize || "11px"};
   `;
   clone.style.cssText = `
     width: ${width}px;
@@ -117,7 +219,6 @@ export async function downloadElementAsJpeg(
   for (const input of inputs) {
     const span = document.createElement("span");
     span.textContent = input.value;
-    span.style.cssText = input.style.cssText;
     span.style.display = "inline";
     span.style.color = "black";
     span.style.fontFamily = "inherit";
@@ -134,7 +235,6 @@ export async function downloadElementAsJpeg(
   for (const textarea of textareas) {
     const span = document.createElement("span");
     span.textContent = textarea.value;
-    span.style.cssText = textarea.style.cssText;
     span.style.display = "block";
     span.style.color = "black";
     span.style.fontFamily = "inherit";
@@ -145,7 +245,21 @@ export async function downloadElementAsJpeg(
     textarea.replaceWith(span);
   }
 
+  // CRITICAL: Remove all style elements (Tailwind CSS) from the clone
+  // that contain oklch references — these crash html2canvas
+  const styleElements = clone.querySelectorAll("style");
+  for (const styleEl of styleElements) {
+    styleEl.remove();
+  }
+
   wrapper.appendChild(clone);
+
+  // Strip inline oklch styles from all elements
+  stripOklchFromElement(clone);
+
+  // Inject a safe stylesheet override AFTER stripping (so it wins)
+  injectSafeStylesheet(wrapper);
+
   document.body.appendChild(wrapper);
 
   let canvas: HTMLCanvasElement;
@@ -161,6 +275,29 @@ export async function downloadElementAsJpeg(
       scrollY: 0,
       allowTaint: false,
       foreignObjectRendering: false,
+      onclone: (clonedDoc: Document) => {
+        // Extra pass: strip any remaining oklch from the cloned document
+        const clonedBody = clonedDoc.body;
+        if (clonedBody) {
+          const allInClone = clonedBody.querySelectorAll("*");
+          for (const el of allInClone) {
+            if (!(el instanceof HTMLElement)) continue;
+            if (el.style.cssText?.includes("oklch")) {
+              const parts = el.style.cssText.split(";");
+              const safe = parts.filter((p) => !p.includes("oklch"));
+              el.style.cssText = safe.join(";");
+            }
+          }
+          // Also inject safe styles into cloned document head
+          const safeStyle = clonedDoc.createElement("style");
+          safeStyle.textContent = `
+            * { background-color: white !important; color: black !important; border-color: #cccccc !important; box-shadow: none !important; }
+            th { background-color: #e5e7eb !important; }
+            tfoot tr, tfoot tr td { background-color: #f3f4f6 !important; }
+          `;
+          clonedDoc.head.appendChild(safeStyle);
+        }
+      },
     });
   } catch (captureError) {
     document.body.removeChild(wrapper);

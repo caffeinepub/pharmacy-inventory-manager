@@ -26,15 +26,23 @@ import {
   Calendar,
   CheckCircle,
   CreditCard,
+  Download,
   IndianRupee,
   Plus,
+  Printer,
   TrendingDown,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { toast } from "sonner";
-import type { Invoice, LedgerSummary, PaymentRecord } from "../backend.d";
+import type {
+  FirmSettings,
+  Invoice,
+  LedgerSummary,
+  PaymentRecord,
+} from "../backend.d";
 import { useActor } from "../hooks/useActor";
 import { useGetAllDoctors, useGetAllInvoices } from "../hooks/useQueries";
+import { downloadElementAsJpeg } from "../utils/invoiceDownload";
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
@@ -62,6 +70,38 @@ function useGetInvoicePayments(invoiceNumber: bigint | null) {
   });
 }
 
+/** Fetches all payments for a list of invoice numbers using Promise.all */
+function useGetAllPaymentsForDoctor(invoiceNumbers: bigint[]) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Record<string, PaymentRecord[]>>({
+    queryKey: ["allPaymentsForDoctor", invoiceNumbers.map(String).join(",")],
+    queryFn: async () => {
+      if (!actor) return {};
+      const results = await Promise.all(
+        invoiceNumbers.map((num) => actor.getInvoicePayments(num)),
+      );
+      const map: Record<string, PaymentRecord[]> = {};
+      invoiceNumbers.forEach((num, idx) => {
+        map[num.toString()] = results[idx];
+      });
+      return map;
+    },
+    enabled: !!actor && !isFetching && invoiceNumbers.length > 0,
+  });
+}
+
+function useGetFirmSettings() {
+  const { actor, isFetching } = useActor();
+  return useQuery<FirmSettings>({
+    queryKey: ["firmSettings"],
+    queryFn: async () => {
+      if (!actor) throw new Error("Actor not initialized");
+      return actor.getFirmSettings();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
 function useRecordPayment() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
@@ -84,6 +124,7 @@ function useRecordPayment() {
         queryKey: ["invoicePayments", variables.invoiceNumber.toString()],
       });
       queryClient.invalidateQueries({ queryKey: ["ledgerSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["allPaymentsForDoctor"] });
     },
   });
 }
@@ -98,7 +139,374 @@ interface DoctorSummary {
   outstanding: number;
 }
 
-// ─── Components ──────────────────────────────────────────────────────────────
+// cn helper
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+// ─── LedgerPrintView ─────────────────────────────────────────────────────────
+// Uses ONLY inline styles with hex colors — no Tailwind, no oklch — for html2canvas
+
+interface LedgerPrintViewProps {
+  doctorName: string;
+  invoices: Invoice[];
+  allPayments: Record<string, PaymentRecord[]>;
+  firmName: string;
+  totalCredit: number;
+  totalPaid: number;
+  outstanding: number;
+}
+
+const thStyle: React.CSSProperties = {
+  border: "1px solid black",
+  padding: "5px 8px",
+  textAlign: "left",
+  backgroundColor: "#e5e7eb",
+  color: "black",
+  fontWeight: 700,
+  fontSize: "11px",
+};
+
+const tdStyle: React.CSSProperties = {
+  border: "1px solid #cccccc",
+  padding: "5px 8px",
+  color: "black",
+  fontSize: "11px",
+  verticalAlign: "middle",
+};
+
+function LedgerPrintView({
+  doctorName,
+  invoices,
+  allPayments,
+  firmName,
+  totalCredit,
+  totalPaid,
+  outstanding,
+}: LedgerPrintViewProps) {
+  const today = new Date().toLocaleDateString("en-IN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const sortedInvoices = [...invoices].sort(
+    (a, b) => Number(b.invoiceNumber) - Number(a.invoiceNumber),
+  );
+
+  return (
+    <div
+      className="ledger-print-container"
+      style={{
+        width: "794px",
+        background: "white",
+        color: "black",
+        padding: "32px",
+        fontFamily: "Arial, Helvetica, sans-serif",
+        fontSize: "12px",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          textAlign: "center",
+          borderBottom: "2px solid black",
+          paddingBottom: "12px",
+          marginBottom: "16px",
+        }}
+      >
+        <h1
+          style={{
+            fontSize: "20px",
+            fontWeight: "bold",
+            color: "black",
+            margin: 0,
+          }}
+        >
+          {firmName}
+        </h1>
+        <h2
+          style={{
+            fontSize: "14px",
+            color: "black",
+            margin: "4px 0 0",
+            fontWeight: 600,
+          }}
+        >
+          Ledger Statement
+        </h2>
+        <p
+          style={{
+            fontSize: "11px",
+            color: "#333333",
+            margin: "4px 0 0",
+          }}
+        >
+          Doctor: <strong>{doctorName}</strong> &nbsp;|&nbsp; Date: {today}
+        </p>
+      </div>
+
+      {/* Summary */}
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          marginBottom: "16px",
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            border: "1px solid #333333",
+            borderRadius: "6px",
+            padding: "10px",
+            textAlign: "center",
+            background: "white",
+          }}
+        >
+          <div style={{ fontSize: "10px", color: "#555555" }}>Total Credit</div>
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              color: "black",
+            }}
+          >
+            ₹{totalCredit.toLocaleString("en-IN")}
+          </div>
+        </div>
+        <div
+          style={{
+            flex: 1,
+            border: "1px solid #16a34a",
+            borderRadius: "6px",
+            padding: "10px",
+            textAlign: "center",
+            background: "white",
+          }}
+        >
+          <div style={{ fontSize: "10px", color: "#555555" }}>Total Paid</div>
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              color: "#16a34a",
+            }}
+          >
+            ₹{totalPaid.toLocaleString("en-IN")}
+          </div>
+        </div>
+        <div
+          style={{
+            flex: 1,
+            border: outstanding > 0 ? "1px solid #dc2626" : "1px solid #16a34a",
+            borderRadius: "6px",
+            padding: "10px",
+            textAlign: "center",
+            background: "white",
+          }}
+        >
+          <div style={{ fontSize: "10px", color: "#555555" }}>Outstanding</div>
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              color: outstanding > 0 ? "#dc2626" : "#16a34a",
+            }}
+          >
+            ₹{outstanding.toLocaleString("en-IN")}
+          </div>
+        </div>
+      </div>
+
+      {/* Invoices Table */}
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          fontSize: "11px",
+        }}
+      >
+        <thead>
+          <tr style={{ backgroundColor: "#e5e7eb" }}>
+            <th style={thStyle}>Invoice #</th>
+            <th style={thStyle}>Date</th>
+            <th style={thStyle}>Payment Type</th>
+            <th style={{ ...thStyle, textAlign: "right" }}>Grand Total</th>
+            <th style={{ ...thStyle, textAlign: "right" }}>Paid</th>
+            <th style={{ ...thStyle, textAlign: "right" }}>Due</th>
+            <th style={thStyle}>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedInvoices.map((inv) => {
+            const invNum = Number(inv.invoiceNumber);
+            const payments = allPayments[invNum.toString()] || [];
+            const isCredit = inv.paymentType === "credit";
+            const amountDue = Number(inv.amountDue);
+            const status =
+              amountDue <= 0 ? "Paid" : isCredit ? "Credit" : "Cash";
+            const statusColor =
+              amountDue <= 0 ? "#16a34a" : isCredit ? "#d97706" : "#2563eb";
+
+            return (
+              <React.Fragment key={invNum}>
+                <tr style={{ borderBottom: "1px solid #cccccc" }}>
+                  <td style={tdStyle}>
+                    #{inv.invoiceNumber.toString().padStart(6, "0")}
+                  </td>
+                  <td style={tdStyle}>
+                    {new Date(
+                      Number(inv.timestamp) / 1_000_000,
+                    ).toLocaleDateString("en-IN")}
+                  </td>
+                  <td style={tdStyle}>{isCredit ? "Credit" : "Cash"}</td>
+                  <td
+                    style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}
+                  >
+                    ₹{Number(inv.grandTotal).toLocaleString("en-IN")}
+                  </td>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      textAlign: "right",
+                      color: "#16a34a",
+                      fontWeight: 600,
+                    }}
+                  >
+                    ₹{Number(inv.amountPaid).toLocaleString("en-IN")}
+                  </td>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      textAlign: "right",
+                      color: amountDue > 0 ? "#dc2626" : "#16a34a",
+                      fontWeight: 600,
+                    }}
+                  >
+                    ₹{amountDue.toLocaleString("en-IN")}
+                  </td>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      color: statusColor,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {status}
+                  </td>
+                </tr>
+                {/* Payment history sub-rows */}
+                {payments.map((p) => (
+                  <tr
+                    key={`pay-${invNum}-${Number(p.timestamp)}`}
+                    style={{ backgroundColor: "#f9fafb" }}
+                  >
+                    <td
+                      colSpan={3}
+                      style={{
+                        ...tdStyle,
+                        paddingLeft: "24px",
+                        color: "#555555",
+                        fontSize: "10px",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      ↳ Payment on {p.paymentDate}
+                    </td>
+                    <td
+                      colSpan={4}
+                      style={{
+                        ...tdStyle,
+                        textAlign: "right",
+                        color: "#16a34a",
+                        fontSize: "10px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      +₹{Number(p.amount).toLocaleString("en-IN")}
+                    </td>
+                  </tr>
+                ))}
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr
+            style={{
+              backgroundColor: "#e5e7eb",
+              borderTop: "2px solid black",
+            }}
+          >
+            <td
+              colSpan={3}
+              style={{
+                ...tdStyle,
+                fontWeight: 700,
+                fontSize: "12px",
+                textAlign: "right",
+                backgroundColor: "#e5e7eb",
+              }}
+            >
+              Totals:
+            </td>
+            <td
+              style={{
+                ...tdStyle,
+                textAlign: "right",
+                fontWeight: 700,
+                backgroundColor: "#e5e7eb",
+              }}
+            >
+              ₹{totalCredit.toLocaleString("en-IN")}
+            </td>
+            <td
+              style={{
+                ...tdStyle,
+                textAlign: "right",
+                fontWeight: 700,
+                color: "#16a34a",
+                backgroundColor: "#e5e7eb",
+              }}
+            >
+              ₹{totalPaid.toLocaleString("en-IN")}
+            </td>
+            <td
+              style={{
+                ...tdStyle,
+                textAlign: "right",
+                fontWeight: 700,
+                color: outstanding > 0 ? "#dc2626" : "#16a34a",
+                backgroundColor: "#e5e7eb",
+              }}
+            >
+              ₹{outstanding.toLocaleString("en-IN")}
+            </td>
+            <td style={{ ...tdStyle, backgroundColor: "#e5e7eb" }}>&nbsp;</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      {/* Footer */}
+      <div
+        style={{
+          marginTop: "24px",
+          paddingTop: "12px",
+          borderTop: "1px solid #cccccc",
+          textAlign: "center",
+          fontSize: "10px",
+          color: "#555555",
+        }}
+      >
+        Generated on {today} — This is a computer-generated ledger statement.
+      </div>
+    </div>
+  );
+}
+
+// ─── SummaryCard ──────────────────────────────────────────────────────────────
 
 function SummaryCard({
   title,
@@ -113,13 +521,13 @@ function SummaryCard({
 }) {
   return (
     <Card
-      className={
+      className={cn(
         variant === "outstanding" && amount > 0
           ? "border-destructive/30 bg-destructive/5"
           : variant === "paid"
             ? "border-green-500/30 bg-green-500/5"
-            : ""
-      }
+            : "",
+      )}
     >
       <CardContent className="pt-4 pb-4">
         <div className="flex items-center gap-3">
@@ -163,11 +571,6 @@ function SummaryCard({
       </CardContent>
     </Card>
   );
-}
-
-// cn helper (import may not be available directly)
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
 }
 
 // ─── Doctor List View ─────────────────────────────────────────────────────────
@@ -217,6 +620,7 @@ function DoctorListView({
                   key={s.doctorName}
                   className="cursor-pointer hover:bg-muted/30"
                   onClick={() => onSelectDoctor(s.doctorName)}
+                  data-ocid="ledger.item.1"
                 >
                   <TableCell className="font-medium">{s.doctorName}</TableCell>
                   <TableCell className="text-right">
@@ -241,6 +645,7 @@ function DoctorListView({
                     <Button
                       variant="outline"
                       size="sm"
+                      data-ocid="ledger.secondary_button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectDoctor(s.doctorName);
@@ -315,7 +720,7 @@ function RecordPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" data-ocid="payment.dialog">
         <DialogHeader>
           <DialogTitle>Record Payment</DialogTitle>
         </DialogHeader>
@@ -334,6 +739,7 @@ function RecordPaymentDialog({
               max={maxAmount}
               defaultValue=""
               placeholder={`Max ₹${maxAmount}`}
+              data-ocid="payment.input"
             />
           </div>
           <div className="grid gap-2">
@@ -343,13 +749,23 @@ function RecordPaymentDialog({
               ref={dateRef}
               type="date"
               defaultValue={today}
+              data-ocid="payment.input"
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              data-ocid="payment.cancel_button"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={recordPayment.isPending}>
+            <Button
+              type="submit"
+              disabled={recordPayment.isPending}
+              data-ocid="payment.submit_button"
+            >
               {recordPayment.isPending ? "Recording..." : "Record Payment"}
             </Button>
           </DialogFooter>
@@ -359,140 +775,7 @@ function RecordPaymentDialog({
   );
 }
 
-// ─── Doctor Detail View ───────────────────────────────────────────────────────
-
-function DoctorDetailView({
-  doctorName,
-  invoices,
-  onBack,
-}: {
-  doctorName: string;
-  invoices: Invoice[];
-  onBack: () => void;
-}) {
-  const [paymentDialogInvoice, setPaymentDialogInvoice] =
-    useState<Invoice | null>(null);
-  const { data: summary, isLoading: summaryLoading } =
-    useGetDoctorLedgerSummary(doctorName);
-
-  const doctorInvoices = invoices
-    .filter((inv) => inv.doctorName === doctorName)
-    .sort((a, b) => Number(b.invoiceNumber) - Number(a.invoiceNumber));
-
-  const totalCredit = doctorInvoices.reduce(
-    (sum, inv) => sum + Number(inv.grandTotal),
-    0,
-  );
-  const totalPaid = summary
-    ? Number(summary.totalPaid)
-    : doctorInvoices.reduce((sum, inv) => sum + Number(inv.amountPaid), 0);
-  const outstanding = totalCredit - totalPaid;
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </Button>
-        <div>
-          <h3 className="text-xl font-semibold text-foreground">
-            {doctorName}
-          </h3>
-          <p className="text-sm text-muted-foreground">Doctor Ledger</p>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      {summaryLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-20 w-full" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SummaryCard
-            title="Total Credit Given"
-            amount={totalCredit}
-            icon={CreditCard}
-          />
-          <SummaryCard
-            title="Total Paid"
-            amount={totalPaid}
-            variant="paid"
-            icon={CheckCircle}
-          />
-          <SummaryCard
-            title="Outstanding Balance"
-            amount={outstanding}
-            variant="outstanding"
-            icon={TrendingDown}
-          />
-        </div>
-      )}
-
-      {/* Invoices Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Invoice History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {doctorInvoices.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No invoices for this doctor
-            </p>
-          ) : (
-            <div className="rounded-lg border border-border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="font-semibold">Invoice #</TableHead>
-                    <TableHead className="font-semibold">
-                      Payment Type
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      Grand Total
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      Paid
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      Due
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      Action
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {doctorInvoices.map((inv) => (
-                    <InvoiceRow
-                      key={Number(inv.invoiceNumber)}
-                      invoice={inv}
-                      onRecordPayment={() => setPaymentDialogInvoice(inv)}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Payment Dialog */}
-      <RecordPaymentDialog
-        open={paymentDialogInvoice !== null}
-        invoiceNumber={paymentDialogInvoice?.invoiceNumber ?? null}
-        maxAmount={
-          paymentDialogInvoice ? Number(paymentDialogInvoice.amountDue) : 0
-        }
-        onClose={() => setPaymentDialogInvoice(null)}
-      />
-    </div>
-  );
-}
+// ─── Invoice Row ─────────────────────────────────────────────────────────────
 
 function InvoiceRow({
   invoice,
@@ -554,6 +837,7 @@ function InvoiceRow({
                 size="sm"
                 onClick={() => setShowPayments(!showPayments)}
                 className="text-xs gap-1"
+                data-ocid="ledger.toggle"
               >
                 <Calendar className="w-3 h-3" />
                 {showPayments ? "Hide" : `History (${payments.length})`}
@@ -566,6 +850,7 @@ function InvoiceRow({
                 size="sm"
                 onClick={onRecordPayment}
                 className="gap-1 text-xs"
+                data-ocid="ledger.primary_button"
               >
                 <Plus className="w-3 h-3" />
                 Pay
@@ -581,6 +866,7 @@ function InvoiceRow({
                   size="sm"
                   onClick={() => setShowPayments(!showPayments)}
                   className="text-xs gap-1"
+                  data-ocid="ledger.toggle"
                 >
                   <Calendar className="w-3 h-3" />
                   History
@@ -627,6 +913,245 @@ function InvoiceRow({
         </TableRow>
       )}
     </>
+  );
+}
+
+// ─── Doctor Detail View ───────────────────────────────────────────────────────
+
+function DoctorDetailView({
+  doctorName,
+  invoices,
+  onBack,
+}: {
+  doctorName: string;
+  invoices: Invoice[];
+  onBack: () => void;
+}) {
+  const [paymentDialogInvoice, setPaymentDialogInvoice] =
+    useState<Invoice | null>(null);
+  const { data: summary, isLoading: summaryLoading } =
+    useGetDoctorLedgerSummary(doctorName);
+  const { data: firmSettings } = useGetFirmSettings();
+  const ledgerPrintRef = useRef<HTMLDivElement>(null);
+
+  const doctorInvoices = invoices
+    .filter((inv) => inv.doctorName === doctorName)
+    .sort((a, b) => Number(b.invoiceNumber) - Number(a.invoiceNumber));
+
+  const invoiceNumbers = doctorInvoices.map((inv) => inv.invoiceNumber);
+  const { data: allPayments = {} } = useGetAllPaymentsForDoctor(invoiceNumbers);
+
+  const totalCredit = doctorInvoices.reduce(
+    (sum, inv) => sum + Number(inv.grandTotal),
+    0,
+  );
+  const totalPaid = summary
+    ? Number(summary.totalPaid)
+    : doctorInvoices.reduce((sum, inv) => sum + Number(inv.amountPaid), 0);
+  const outstanding = totalCredit - totalPaid;
+
+  const firmName = firmSettings?.name || "PharmaCare";
+
+  const handlePrintLedger = () => {
+    const content = ledgerPrintRef.current;
+    if (!content) return;
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) {
+      toast.error("Please allow popups to print the ledger");
+      return;
+    }
+    printWindow.document.write(
+      `<html><head><title>Ledger - ${doctorName}</title><style>body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;}@media print{@page{size:A4 portrait;margin:10mm;}}</style></head><body style="margin:0;padding:0">${content.innerHTML}</body></html>`,
+    );
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+  };
+
+  const handleSaveLedgerJpg = async () => {
+    const printDiv = ledgerPrintRef.current;
+    if (!printDiv) return;
+    const ledgerContainer = printDiv.querySelector(
+      ".ledger-print-container",
+    ) as HTMLElement | null;
+    if (!ledgerContainer) {
+      toast.error("Ledger container not found");
+      return;
+    }
+    try {
+      const dateStr = new Date().toISOString().slice(0, 10);
+      await downloadElementAsJpeg(
+        ledgerContainer,
+        `Ledger-${doctorName.replace(/\s+/g, "-")}-${dateStr}.jpeg`,
+      );
+      toast.success("Ledger saved as JPG");
+    } catch (e) {
+      toast.error(`Failed to save ledger: ${(e as Error).message}`);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="gap-2"
+            data-ocid="ledger.secondary_button"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Button>
+          <div>
+            <h3 className="text-xl font-semibold text-foreground">
+              {doctorName}
+            </h3>
+            <p className="text-sm text-muted-foreground">Doctor Ledger</p>
+          </div>
+        </div>
+        {/* Print + Download buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={handlePrintLedger}
+            data-ocid="ledger.primary_button"
+          >
+            <Printer className="w-4 h-4" />
+            Print Ledger
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={handleSaveLedgerJpg}
+            data-ocid="ledger.secondary_button"
+          >
+            <Download className="w-4 h-4" />
+            Save as JPG
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      {summaryLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 w-full" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <SummaryCard
+            title="Total Credit Given"
+            amount={totalCredit}
+            icon={CreditCard}
+          />
+          <SummaryCard
+            title="Total Paid"
+            amount={totalPaid}
+            variant="paid"
+            icon={CheckCircle}
+          />
+          <SummaryCard
+            title="Outstanding Balance"
+            amount={outstanding}
+            variant="outstanding"
+            icon={TrendingDown}
+          />
+        </div>
+      )}
+
+      {/* Invoices Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Invoice &amp; Payment History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {doctorInvoices.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              No invoices for this doctor
+            </p>
+          ) : (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-semibold">Invoice #</TableHead>
+                    <TableHead className="font-semibold">
+                      Payment Type
+                    </TableHead>
+                    <TableHead className="text-right font-semibold">
+                      Grand Total
+                    </TableHead>
+                    <TableHead className="text-right font-semibold">
+                      Paid
+                    </TableHead>
+                    <TableHead className="text-right font-semibold">
+                      Due
+                    </TableHead>
+                    <TableHead className="text-right font-semibold">
+                      Action
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {doctorInvoices.map((inv) => (
+                    <InvoiceRow
+                      key={Number(inv.invoiceNumber)}
+                      invoice={inv}
+                      onRecordPayment={() => setPaymentDialogInvoice(inv)}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Hidden off-screen container for ledger print/JPG capture */}
+      <div
+        ref={ledgerPrintRef}
+        style={{
+          position: "absolute",
+          left: "-9999px",
+          top: 0,
+          zIndex: -1,
+          pointerEvents: "none",
+        }}
+        aria-hidden="true"
+      >
+        <LedgerPrintView
+          doctorName={doctorName}
+          invoices={doctorInvoices}
+          allPayments={allPayments}
+          firmName={firmName}
+          totalCredit={totalCredit}
+          totalPaid={totalPaid}
+          outstanding={outstanding}
+        />
+      </div>
+
+      {/* Payment Dialog */}
+      <RecordPaymentDialog
+        open={paymentDialogInvoice !== null}
+        invoiceNumber={paymentDialogInvoice?.invoiceNumber ?? null}
+        maxAmount={
+          paymentDialogInvoice ? Number(paymentDialogInvoice.amountDue) : 0
+        }
+        onClose={() => setPaymentDialogInvoice(null)}
+      />
+    </div>
   );
 }
 
