@@ -10,20 +10,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -32,7 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, FileText, Printer, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Invoice } from "../backend.d";
+import type { Invoice, InvoiceItem } from "../backend.d";
 import type { EditableInvoiceData } from "../components/InvoicePreview";
 import InvoicePreview from "../components/InvoicePreview";
 import {
@@ -80,7 +78,6 @@ export default function InvoicesPage() {
       return;
     }
 
-    // Target the exact invoice content element (not the outer wrapper)
     const invoiceContainer = document.querySelector(
       ".invoice-container",
     ) as HTMLElement | null;
@@ -141,7 +138,7 @@ export default function InvoicesPage() {
   const handleSaveInvoice = async (data: EditableInvoiceData) => {
     if (!selectedInvoice) return;
 
-    // Update doctor pricing for any rates that changed
+    // 1. Update doctor pricing for changed rates
     if (selectedInvoice.doctorName) {
       const priceUpdates = data.items
         .map((item, i) => {
@@ -167,7 +164,63 @@ export default function InvoicesPage() {
       }
     }
 
-    toast.success("Invoice changes saved. Doctor pricing updated.");
+    // 2. Rebuild the invoice object with updated values so the UI reflects changes
+    const newSubtotal = data.items.reduce((s, item) => s + item.amount, 0);
+    const newGst =
+      data.gstOverride !== null
+        ? data.gstOverride
+        : Number.parseFloat(((newSubtotal * 5) / 100).toFixed(2));
+    const newGrandTotal = Number.parseFloat((newSubtotal + newGst).toFixed(2));
+    const newAmountDue = Math.max(
+      0,
+      newGrandTotal - Number(selectedInvoice.amountPaid),
+    );
+
+    const updatedItems: InvoiceItem[] = data.items.map((editItem, i) => {
+      const original = selectedInvoice.items[i];
+      return {
+        medicineName: editItem.medicineName,
+        batchNumber: editItem.batchNumber,
+        expiryDate: editItem.expiryDate,
+        hsnCode: editItem.hsnCode,
+        quantity: BigInt(Math.round(editItem.quantity)),
+        sellingPrice: BigInt(Math.round(editItem.rate)),
+        amount: BigInt(Math.round(editItem.amount)),
+        purchaseRate: original?.purchaseRate ?? BigInt(0),
+        profit: original
+          ? BigInt(
+              Math.round(
+                editItem.amount -
+                  editItem.quantity * Number(original.purchaseRate),
+              ),
+            )
+          : BigInt(0),
+      };
+    });
+
+    const updatedInvoice: Invoice = {
+      ...selectedInvoice,
+      subtotal: BigInt(Math.round(newSubtotal)),
+      gstAmount: BigInt(Math.round(newGst)),
+      grandTotal: BigInt(Math.round(newGrandTotal)),
+      amountDue: BigInt(Math.round(newAmountDue)),
+      items: updatedItems,
+    };
+
+    // 3. Update query cache so the invoice list table also reflects the new totals
+    queryClient.setQueryData<Invoice[]>(["invoices"], (old) => {
+      if (!old) return old;
+      return old.map((inv) =>
+        inv.invoiceNumber === selectedInvoice.invoiceNumber
+          ? updatedInvoice
+          : inv,
+      );
+    });
+
+    // 4. Update selectedInvoice so InvoicePreview resets to the saved state
+    setSelectedInvoice(updatedInvoice);
+
+    toast.success("Invoice saved and recalculated successfully.");
   };
 
   return (
@@ -245,6 +298,7 @@ export default function InvoicesPage() {
                         size="sm"
                         onClick={() => handleViewInvoice(invoice)}
                         className="gap-2"
+                        data-ocid="invoices.view_button"
                       >
                         <Eye className="w-4 h-4" />
                         View
@@ -254,6 +308,7 @@ export default function InvoicesPage() {
                         size="sm"
                         onClick={() => handleDeleteClick(invoice.invoiceNumber)}
                         className="gap-2 text-destructive hover:text-destructive"
+                        data-ocid="invoices.delete_button"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -278,7 +333,11 @@ export default function InvoicesPage() {
                 {selectedInvoice?.invoiceNumber.toString().padStart(6, "0")}
               </span>
               <div className="flex gap-2">
-                <Button onClick={handlePrint} className="gap-2">
+                <Button
+                  onClick={handlePrint}
+                  className="gap-2"
+                  data-ocid="invoices.print_button"
+                >
                   <Printer className="w-4 h-4" />
                   Print
                 </Button>
@@ -286,6 +345,7 @@ export default function InvoicesPage() {
                   onClick={handleDownloadJpeg}
                   variant="secondary"
                   className="gap-2"
+                  data-ocid="invoices.download_button"
                 >
                   <Download className="w-4 h-4" />
                   Download as JPEG
