@@ -99,33 +99,56 @@ function stripOklchFromElement(root: HTMLElement): void {
 
 /**
  * Injects a safe override stylesheet into the wrapper so html2canvas
- * sees only browser-safe colors.
+ * sees only browser-safe colors. Also ensures table cells are not clipped.
  */
 function injectSafeStylesheet(container: HTMLElement): void {
   const safeStyle = document.createElement("style");
   safeStyle.textContent = `
     * {
-      background-color: white !important;
-      color: black !important;
-      border-color: #cccccc !important;
-      outline-color: #cccccc !important;
+      background-color: white;
+      color: black;
+      border-color: #cccccc;
+      outline-color: #cccccc;
       box-shadow: none !important;
       text-shadow: none !important;
     }
     table {
       border-color: black !important;
+      border-collapse: collapse !important;
+      table-layout: auto !important;
+      width: 100% !important;
     }
     th, td {
+      border: 1px solid black !important;
       border-color: black !important;
+      height: auto !important;
+      min-height: 0 !important;
+      overflow: visible !important;
+      vertical-align: middle !important;
+      padding: 4px 5px !important;
+      word-break: break-word !important;
+      white-space: normal !important;
+      box-sizing: border-box !important;
     }
     th {
       background-color: #e5e7eb !important;
       color: black !important;
+      font-weight: 600 !important;
+      font-size: 8px !important;
+      text-align: center !important;
     }
-    tfoot tr {
-      background-color: #f3f4f6 !important;
+    td {
+      background-color: white !important;
+      color: black !important;
+      font-size: 8.5px !important;
     }
-    tfoot tr td {
+    tr {
+      height: auto !important;
+    }
+    tbody tr td {
+      background-color: white !important;
+    }
+    tfoot tr, tfoot tr td {
       background-color: #f3f4f6 !important;
     }
     .text-green-600, .text-green-700 {
@@ -143,6 +166,21 @@ function injectSafeStylesheet(container: HTMLElement): void {
     strong, b {
       color: black !important;
     }
+    /* Ensure rupee prefix spans are inline */
+    .rupee-cell {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 1px !important;
+    }
+    .rupee-prefix {
+      color: black !important;
+      flex-shrink: 0 !important;
+    }
+    span {
+      display: inline !important;
+      overflow: visible !important;
+    }
   `;
   container.insertBefore(safeStyle, container.firstChild);
 }
@@ -152,6 +190,7 @@ function injectSafeStylesheet(container: HTMLElement): void {
  * - Hides Save Changes button and logo images in the output
  * - Ensures all product rows are fully captured inside the box
  * - Strips oklch colors for html2canvas compatibility
+ * - Switches table-layout to auto so cells expand to fit content
  */
 export async function downloadElementAsJpeg(
   element: HTMLElement,
@@ -178,7 +217,6 @@ export async function downloadElementAsJpeg(
   // does not clip the captured content.
   const clone = element.cloneNode(true) as HTMLElement;
 
-  const originalStyles = window.getComputedStyle(element);
   const width = element.scrollWidth || element.offsetWidth;
 
   // ---- Remove elements that must NOT appear in downloaded JPEG ----
@@ -197,7 +235,6 @@ export async function downloadElementAsJpeg(
       btn.textContent?.toLowerCase().includes("save") ||
       btn.textContent?.toLowerCase().includes("saving")
     ) {
-      // Remove parent div wrapper too if it's just a button container
       const parent = btn.parentElement;
       if (
         parent &&
@@ -222,6 +259,30 @@ export async function downloadElementAsJpeg(
     svg.remove();
   }
 
+  // ---- Fix table-layout: auto so cells expand to fit their text ----
+  const tables = clone.querySelectorAll("table");
+  for (const table of tables) {
+    (table as HTMLElement).style.tableLayout = "auto";
+    (table as HTMLElement).style.width = "100%";
+  }
+  // Remove colgroup width constraints — auto layout will size columns to fit
+  const colgroups = clone.querySelectorAll("colgroup");
+  for (const cg of colgroups) {
+    cg.remove();
+  }
+  // Ensure all table cells are unconstrained
+  const allCells = clone.querySelectorAll("td, th");
+  for (const cell of allCells) {
+    const el = cell as HTMLElement;
+    el.style.height = "auto";
+    el.style.overflow = "visible";
+    el.style.whiteSpace = "normal";
+    el.style.wordBreak = "break-word";
+    el.style.verticalAlign = "middle";
+    el.style.padding = "4px 5px";
+    el.style.boxSizing = "border-box";
+  }
+
   // ---- Replace inputs/textareas with plain text so download looks clean ----
   const inputs = clone.querySelectorAll("input");
   for (const input of inputs) {
@@ -235,6 +296,7 @@ export async function downloadElementAsJpeg(
     span.style.lineHeight = "inherit";
     span.style.wordBreak = "break-word";
     span.style.whiteSpace = "normal";
+    span.style.overflow = "visible";
     input.replaceWith(span);
   }
 
@@ -259,7 +321,6 @@ export async function downloadElementAsJpeg(
   }
 
   // ---- Build off-screen wrapper ----
-  // Don't fix height — let the clone expand to its natural height so all rows fit
   const wrapper = document.createElement("div");
   wrapper.style.cssText = `
     position: fixed;
@@ -269,8 +330,8 @@ export async function downloadElementAsJpeg(
     overflow: visible;
     z-index: -1;
     background: white;
-    font-family: ${originalStyles.fontFamily || "Arial, Helvetica, sans-serif"};
-    font-size: ${originalStyles.fontSize || "11px"};
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11px;
   `;
   clone.style.cssText = `
     width: ${width}px;
@@ -279,6 +340,7 @@ export async function downloadElementAsJpeg(
     color: black;
     position: relative;
     box-sizing: border-box;
+    padding: 20px 24px;
   `;
 
   wrapper.appendChild(clone);
@@ -286,13 +348,20 @@ export async function downloadElementAsJpeg(
   // Strip inline oklch styles
   stripOklchFromElement(clone);
 
-  // Inject safe stylesheet
+  // Inject safe stylesheet (also fixes table cell overflow)
   injectSafeStylesheet(wrapper);
 
   document.body.appendChild(wrapper);
 
-  // Measure natural height AFTER attaching to DOM (so layout is computed)
-  const naturalHeight = clone.scrollHeight || clone.offsetHeight;
+  // Force a reflow so the browser computes correct heights for all cells
+  void wrapper.offsetHeight;
+
+  // Measure natural height AFTER attaching to DOM (so layout is fully computed)
+  const naturalHeight = Math.max(
+    clone.scrollHeight,
+    clone.offsetHeight,
+    clone.getBoundingClientRect().height,
+  );
 
   let canvas: HTMLCanvasElement;
   try {
@@ -319,11 +388,28 @@ export async function downloadElementAsJpeg(
               el.style.cssText = safe.join(";");
             }
           }
+          // Fix table-layout in the final cloned doc too
+          const clonedTables = clonedBody.querySelectorAll("table");
+          for (const tbl of clonedTables) {
+            (tbl as HTMLElement).style.tableLayout = "auto";
+          }
+          const clonedCells = clonedBody.querySelectorAll("td, th");
+          for (const cell of clonedCells) {
+            const el = cell as HTMLElement;
+            el.style.height = "auto";
+            el.style.overflow = "visible";
+            el.style.whiteSpace = "normal";
+            el.style.wordBreak = "break-word";
+            el.style.padding = "4px 5px";
+          }
           const safeStyle = clonedDoc.createElement("style");
           safeStyle.textContent = `
-            * { background-color: white !important; color: black !important; border-color: #cccccc !important; box-shadow: none !important; }
-            th { background-color: #e5e7eb !important; }
+            * { background-color: white; color: black; border-color: #cccccc; box-shadow: none !important; }
+            table { table-layout: auto !important; border-collapse: collapse !important; width: 100% !important; }
+            th { background-color: #e5e7eb !important; font-weight: 600 !important; text-align: center !important; }
+            th, td { border: 1px solid black !important; padding: 4px 5px !important; height: auto !important; overflow: visible !important; vertical-align: middle !important; word-break: break-word !important; white-space: normal !important; box-sizing: border-box !important; }
             tfoot tr, tfoot tr td { background-color: #f3f4f6 !important; }
+            span { display: inline; overflow: visible; }
           `;
           clonedDoc.head.appendChild(safeStyle);
         }
