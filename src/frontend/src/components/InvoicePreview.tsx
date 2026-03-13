@@ -86,9 +86,9 @@ export interface EditableItem {
   quantity: number;
   rate: number;
   mrp: number | null;
-  amount: number; // qty * rate
-  gst: number; // overridable
-  total: number; // amount + gst
+  amount: number;
+  gst: number;
+  total: number;
 }
 
 export interface EditableInvoiceData {
@@ -102,7 +102,7 @@ export interface EditableInvoiceData {
   date: string;
   doctorName: string;
   items: EditableItem[];
-  gstOverride: number | null; // if null, computed from items
+  gstOverride: number | null;
 }
 
 export function buildEditableInvoice(
@@ -119,7 +119,8 @@ export function buildEditableInvoice(
     const qty = Number(item.quantity);
     const rate = Number(item.sellingPrice);
     const amount = Number.parseFloat((qty * rate).toFixed(2));
-    const gst = Number.parseFloat(((amount * 5) / 100).toFixed(2));
+    // GST rounded to whole rupees using standard math rounding
+    const gst = Math.round((amount * 5) / 100);
     const medicine = medicines.find((m) => m.name === item.medicineName);
     const mrp = medicine ? Number(medicine.mrp) : null;
     return {
@@ -136,9 +137,9 @@ export function buildEditableInvoice(
     };
   });
 
-  const totalGst = Number.parseFloat(
-    ((items.reduce((s, i) => s + i.amount, 0) * 5) / 100).toFixed(2),
-  );
+  // Total GST = Math.round(subtotal * 5 / 100)
+  const subtotal = items.reduce((s, i) => s + i.amount, 0);
+  const totalGst = Math.round((subtotal * 5) / 100);
 
   return {
     firmName: firmSettings?.name || "PharmaCare",
@@ -180,23 +181,20 @@ export default function InvoicePreview({
   );
   const [isSaving, setIsSaving] = useState(false);
 
-  // Reset when invoice changes
   useEffect(() => {
     setData(buildEditableInvoice(invoice, firmSettings, medicines, doctors));
   }, [invoice, firmSettings, medicines, doctors]);
 
-  // Computed totals
   const subtotal = data.items.reduce((s, item) => s + item.amount, 0);
-  const computedGst = data.items.reduce((s, item) => s + item.gst, 0);
-  const activeGst = data.gstOverride !== null ? data.gstOverride : computedGst;
+  const computedGst = Math.round((subtotal * 5) / 100);
+  const activeGst =
+    data.gstOverride !== null ? Math.round(data.gstOverride) : computedGst;
   const grandTotal = subtotal + activeGst;
 
-  // Update a top-level field
   const setField = (field: keyof EditableInvoiceData, value: string) => {
     setData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Update an item field with recalculation
   const updateItem = (
     index: number,
     field: keyof EditableItem,
@@ -218,17 +216,15 @@ export default function InvoicePreview({
         item.quantity = qty;
         const amount = Number.parseFloat((qty * item.rate).toFixed(2));
         item.amount = amount;
-        const gst = Number.parseFloat(((amount * 5) / 100).toFixed(2));
-        item.gst = gst;
-        item.total = Number.parseFloat((amount + gst).toFixed(2));
+        item.gst = Math.round((amount * 5) / 100);
+        item.total = Number.parseFloat((amount + item.gst).toFixed(2));
       } else if (field === "rate") {
         const rate = Number.parseFloat(rawValue) || 0;
         item.rate = rate;
         const amount = Number.parseFloat((item.quantity * rate).toFixed(2));
         item.amount = amount;
-        const gst = Number.parseFloat(((amount * 5) / 100).toFixed(2));
-        item.gst = gst;
-        item.total = Number.parseFloat((amount + gst).toFixed(2));
+        item.gst = Math.round((amount * 5) / 100);
+        item.total = Number.parseFloat((amount + item.gst).toFixed(2));
       } else if (field === "mrp") {
         item.mrp = Number.parseFloat(rawValue) || 0;
       } else if (field === "gst") {
@@ -238,9 +234,8 @@ export default function InvoicePreview({
       } else if (field === "amount") {
         const amount = Number.parseFloat(rawValue) || 0;
         item.amount = amount;
-        const gst = Number.parseFloat(((amount * 5) / 100).toFixed(2));
-        item.gst = gst;
-        item.total = Number.parseFloat((amount + gst).toFixed(2));
+        item.gst = Math.round((amount * 5) / 100);
+        item.total = Number.parseFloat((amount + item.gst).toFixed(2));
       }
 
       items[index] = item;
@@ -248,12 +243,8 @@ export default function InvoicePreview({
     });
   };
 
-  // Half A4 = A5 portrait: 148mm wide x 210mm tall
-  // We render at a fixed pixel width (559px ≈ 148mm at 96dpi) so
-  // the download capture matches the preview exactly.
   const INVOICE_WIDTH_PX = 560;
 
-  // All cell styles use explicit hex colors (no oklch/Tailwind) for html2canvas compat
   const cellStyle: React.CSSProperties = {
     color: "black",
     borderColor: "black",
@@ -282,7 +273,6 @@ export default function InvoicePreview({
     <div className="invoice-print-container">
       <style>
         {`
-          /* Prevent inputs from clipping text */
           .invoice-print-container input,
           .invoice-print-container textarea {
             box-sizing: border-box !important;
@@ -291,23 +281,14 @@ export default function InvoicePreview({
             padding: 0 !important;
             margin: 0 !important;
           }
-          /* Ensure table cells allow text to wrap */
           .invoice-print-container td,
           .invoice-print-container th {
             word-break: break-word !important;
             white-space: normal !important;
             overflow: visible !important;
           }
-          /* Medicine name column specifically allows 2-line wrap */
-          .invoice-medicine-name-cell {
-            min-width: 80px;
-            max-width: 110px;
-          }
-          /* Narrow columns keep content visible */
-          .invoice-narrow-cell {
-            min-width: 40px;
-          }
-          /* Inline edit hover hint */
+          .invoice-medicine-name-cell { min-width: 80px; max-width: 110px; }
+          .invoice-narrow-cell { min-width: 40px; }
           .invoice-editable-cell input:hover,
           .invoice-editable-cell textarea:hover {
             background-color: rgba(0,0,0,0.03) !important;
@@ -317,7 +298,6 @@ export default function InvoicePreview({
             border-bottom: 1.5px solid #374151 !important;
             background-color: rgba(0,0,0,0.04) !important;
           }
-          /* Rupee prefix alignment */
           .rupee-cell {
             display: flex;
             align-items: center;
@@ -333,76 +313,39 @@ export default function InvoicePreview({
             flex-shrink: 0;
           }
           @media print {
-            html, body {
-              margin: 0 !important;
-              padding: 0 !important;
-              background: white !important;
-            }
+            html, body { margin: 0 !important; padding: 0 !important; background: white !important; }
             [role="dialog"] {
-              position: static !important;
-              width: 100% !important;
-              height: auto !important;
-              max-height: none !important;
-              overflow: visible !important;
-              border: none !important;
-              box-shadow: none !important;
-              background: white !important;
-              transform: none !important;
-              animation: none !important;
+              position: static !important; width: 100% !important; height: auto !important;
+              max-height: none !important; overflow: visible !important; border: none !important;
+              box-shadow: none !important; background: white !important;
+              transform: none !important; animation: none !important;
             }
-            [role="dialog"] > * {
-              display: none !important;
-            }
+            [role="dialog"] > * { display: none !important; }
             .invoice-print-container {
-              display: block !important;
-              width: 148mm !important;
-              padding: 8mm !important;
-              box-sizing: border-box !important;
-              background: white !important;
-              color: black !important;
-              margin: 0 auto !important;
+              display: block !important; width: 148mm !important; padding: 8mm !important;
+              box-sizing: border-box !important; background: white !important;
+              color: black !important; margin: 0 auto !important;
             }
-            .invoice-print-container * {
-              display: revert !important;
-            }
-            @page {
-              size: A5 portrait;
-              margin: 0;
-            }
-            .invoice-print-container h1 {
-              font-size: 16px !important;
-            }
+            .invoice-print-container * { display: revert !important; }
+            @page { size: A5 portrait; margin: 0; }
+            .invoice-print-container h1 { font-size: 16px !important; }
             .invoice-print-container p,
             .invoice-print-container td,
-            .invoice-print-container th {
-              font-size: 8px !important;
-            }
-            .invoice-print-container table {
-              font-size: 7px !important;
-              width: 100% !important;
-            }
-            .invoice-print-container .text-3xl {
-              font-size: 16px !important;
-            }
+            .invoice-print-container th { font-size: 8px !important; }
+            .invoice-print-container table { font-size: 7px !important; width: 100% !important; }
             .invoice-print-container table td,
-            .invoice-print-container table th {
-              padding: 1mm 1.5mm !important;
-            }
-            .print\\:hidden {
-              display: none !important;
-            }
-            input, textarea {
-              border-bottom: none !important;
-            }
+            .invoice-print-container table th { padding: 1mm 1.5mm !important; }
+            .print\\:hidden { display: none !important; }
+            input, textarea { border-bottom: none !important; }
           }
         `}
       </style>
 
-      {/* invoice-container is captured for JPEG download — fixed pixel width = half A4 */}
       <div
         className="invoice-container"
         style={{
           width: `${INVOICE_WIDTH_PX}px`,
+          height: "auto",
           boxSizing: "border-box",
           background: "white",
           color: "black",
@@ -411,6 +354,7 @@ export default function InvoicePreview({
           fontSize: "11px",
           lineHeight: "1.4",
           margin: "0 auto",
+          overflow: "visible",
         }}
       >
         {/* Header */}
@@ -449,55 +393,102 @@ export default function InvoicePreview({
               textAlign="center"
             />
           </div>
+
+          {/* GST / DIL / Contact — flex-wrap so nothing clips */}
           <div
             style={{
               display: "flex",
               justifyContent: "center",
-              gap: "16px",
+              alignItems: "center",
+              gap: "6px",
               flexWrap: "wrap",
-              fontSize: "10px",
+              fontSize: "9.5px",
               marginBottom: "4px",
+              overflow: "visible",
+              color: "black",
             }}
           >
-            <span>
-              <strong>GSTIN:</strong>{" "}
+            <span
+              style={{
+                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "3px",
+                color: "black",
+              }}
+            >
+              <strong style={{ color: "black" }}>GSTIN:</strong>
               <span
                 className="invoice-editable-cell"
-                style={{ display: "inline-block", minWidth: "80px" }}
+                style={{
+                  display: "inline-block",
+                  minWidth: "60px",
+                  maxWidth: "140px",
+                }}
               >
                 <InlineEdit
                   value={data.firmGstin}
                   onChange={(v) => setField("firmGstin", v)}
+                  style={{ fontSize: "9.5px", color: "black" }}
                 />
               </span>
             </span>
-            <span>
-              <strong>DIL No:</strong>{" "}
+            <span style={{ color: "#888" }}>|</span>
+            <span
+              style={{
+                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "3px",
+                color: "black",
+              }}
+            >
+              <strong style={{ color: "black" }}>DIL No:</strong>
               <span
                 className="invoice-editable-cell"
-                style={{ display: "inline-block", minWidth: "60px" }}
+                style={{
+                  display: "inline-block",
+                  minWidth: "50px",
+                  maxWidth: "120px",
+                }}
               >
                 <InlineEdit
                   value={data.firmDilNumber}
                   onChange={(v) => setField("firmDilNumber", v)}
+                  style={{ fontSize: "9.5px", color: "black" }}
                 />
               </span>
             </span>
-            <span>
-              <strong>Contact:</strong>{" "}
+            <span style={{ color: "#888" }}>|</span>
+            <span
+              style={{
+                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "3px",
+                color: "black",
+              }}
+            >
+              <strong style={{ color: "black" }}>Contact:</strong>
               <span
                 className="invoice-editable-cell"
-                style={{ display: "inline-block", minWidth: "80px" }}
+                style={{
+                  display: "inline-block",
+                  minWidth: "70px",
+                  maxWidth: "140px",
+                }}
               >
                 <InlineEdit
                   value={data.firmContact}
                   onChange={(v) => setField("firmContact", v)}
+                  style={{ fontSize: "9.5px", color: "black" }}
                 />
               </span>
             </span>
           </div>
-          <div style={{ fontSize: "10px" }}>
-            <strong>Shipping Address:</strong>
+
+          <div style={{ fontSize: "10px", color: "black" }}>
+            <strong style={{ color: "black" }}>Shipping Address:</strong>
             <div
               className="invoice-editable-cell"
               style={{ maxWidth: "100%", marginTop: "2px" }}
@@ -520,11 +511,12 @@ export default function InvoicePreview({
             justifyContent: "space-between",
             fontSize: "10px",
             marginBottom: "10px",
+            color: "black",
           }}
         >
           <div>
             <div style={{ marginBottom: "3px" }}>
-              <strong>Invoice No:</strong>{" "}
+              <strong style={{ color: "black" }}>Invoice No:</strong>{" "}
               <span
                 className="invoice-editable-cell"
                 style={{ display: "inline-block", minWidth: "80px" }}
@@ -536,7 +528,7 @@ export default function InvoicePreview({
               </span>
             </div>
             <div>
-              <strong>Date:</strong>{" "}
+              <strong style={{ color: "black" }}>Date:</strong>{" "}
               <span
                 className="invoice-editable-cell"
                 style={{ display: "inline-block", minWidth: "120px" }}
@@ -549,7 +541,7 @@ export default function InvoicePreview({
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <strong>Doctor:</strong>{" "}
+            <strong style={{ color: "black" }}>Doctor:</strong>{" "}
             <span
               className="invoice-editable-cell"
               style={{ display: "inline-block", minWidth: "100px" }}
@@ -580,27 +572,16 @@ export default function InvoicePreview({
             }}
           >
             <colgroup>
-              {/* S.No */}
               <col style={{ width: "20px" }} />
-              {/* Medicine Name — widest column, wraps to 2 lines */}
               <col style={{ width: "100px" }} />
-              {/* Batch */}
               <col style={{ width: "48px" }} />
-              {/* Expiry */}
               <col style={{ width: "44px" }} />
-              {/* HSN */}
               <col style={{ width: "40px" }} />
-              {/* Qty */}
               <col style={{ width: "24px" }} />
-              {/* Rate */}
               <col style={{ width: "38px" }} />
-              {/* MRP */}
               <col style={{ width: "38px" }} />
-              {/* Amount */}
               <col style={{ width: "38px" }} />
-              {/* GST */}
               <col style={{ width: "34px" }} />
-              {/* Total */}
               <col style={{ width: "40px" }} />
             </colgroup>
             <thead>
@@ -624,7 +605,6 @@ export default function InvoicePreview({
               {data.items.map((item, index) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: invoice items don't have stable IDs
                 <tr key={`inv-edit-item-${index}`}>
-                  {/* S.No — centered, single line */}
                   <td
                     style={{
                       ...cellStyle,
@@ -634,7 +614,6 @@ export default function InvoicePreview({
                   >
                     {index + 1}
                   </td>
-                  {/* Medicine name: left-aligned, allows 2-line wrap */}
                   <td
                     style={{
                       ...cellStyle,
@@ -657,7 +636,6 @@ export default function InvoicePreview({
                       }}
                     />
                   </td>
-                  {/* Batch — centered */}
                   <td
                     style={{ ...cellStyle, textAlign: "center" }}
                     className="invoice-editable-cell invoice-narrow-cell"
@@ -669,7 +647,6 @@ export default function InvoicePreview({
                       textAlign="center"
                     />
                   </td>
-                  {/* Expiry — centered */}
                   <td
                     style={{ ...cellStyle, textAlign: "center" }}
                     className="invoice-editable-cell invoice-narrow-cell"
@@ -681,7 +658,6 @@ export default function InvoicePreview({
                       textAlign="center"
                     />
                   </td>
-                  {/* HSN — centered */}
                   <td
                     style={{ ...cellStyle, textAlign: "center" }}
                     className="invoice-editable-cell invoice-narrow-cell"
@@ -693,7 +669,6 @@ export default function InvoicePreview({
                       textAlign="center"
                     />
                   </td>
-                  {/* Qty — centered */}
                   <td
                     style={{ ...cellStyle, textAlign: "center" }}
                     className="invoice-editable-cell"
@@ -705,7 +680,6 @@ export default function InvoicePreview({
                       textAlign="center"
                     />
                   </td>
-                  {/* Rate with ₹ — centered */}
                   <td
                     style={{ ...cellStyle, textAlign: "center" }}
                     className="invoice-editable-cell"
@@ -721,7 +695,6 @@ export default function InvoicePreview({
                       />
                     </div>
                   </td>
-                  {/* MRP with ₹ — centered */}
                   <td
                     style={{ ...cellStyle, textAlign: "center" }}
                     className="invoice-editable-cell"
@@ -737,7 +710,6 @@ export default function InvoicePreview({
                       />
                     </div>
                   </td>
-                  {/* Amt with ₹ — centered */}
                   <td
                     style={{ ...cellStyle, textAlign: "center" }}
                     className="invoice-editable-cell"
@@ -753,7 +725,6 @@ export default function InvoicePreview({
                       />
                     </div>
                   </td>
-                  {/* GST with ₹ — centered */}
                   <td
                     style={{ ...cellStyle, textAlign: "center" }}
                     className="invoice-editable-cell"
@@ -769,7 +740,6 @@ export default function InvoicePreview({
                       />
                     </div>
                   </td>
-                  {/* Total — centered, bold */}
                   <td
                     style={{
                       ...cellStyle,
@@ -798,10 +768,12 @@ export default function InvoicePreview({
             fontSize: "9.5px",
             flexWrap: "nowrap",
             justifyContent: "flex-end",
+            color: "black",
           }}
         >
           <span style={{ color: "black", whiteSpace: "nowrap" }}>
-            <strong>Subtotal:</strong> ₹{subtotal.toFixed(2)}
+            <strong style={{ color: "black" }}>Subtotal:</strong> ₹
+            {subtotal.toFixed(2)}
           </span>
           <span style={{ color: "#555", margin: "0 4px" }}>|</span>
           <span
@@ -813,7 +785,7 @@ export default function InvoicePreview({
               whiteSpace: "nowrap",
             }}
           >
-            <strong>GST (5%):</strong>
+            <strong style={{ color: "black" }}>GST (5%):</strong>
             <span style={{ display: "inline-flex", alignItems: "center" }}>
               <span style={{ color: "black" }}>₹</span>
               <span
@@ -825,7 +797,7 @@ export default function InvoicePreview({
                   onChange={(v) =>
                     setData((prev) => ({
                       ...prev,
-                      gstOverride: Number.parseFloat(v) || 0,
+                      gstOverride: Math.round(Number.parseFloat(v) || 0),
                     }))
                   }
                   type="number"
@@ -846,7 +818,7 @@ export default function InvoicePreview({
           </span>
         </div>
 
-        {/* Save Changes button — hidden when printing */}
+        {/* Save Changes button */}
         {onSave && (
           <div
             className="print:hidden"
@@ -898,8 +870,8 @@ export default function InvoicePreview({
             color: "black",
           }}
         >
-          <div>Thank you for your business!</div>
-          <div style={{ marginTop: "2px" }}>
+          <div style={{ color: "black" }}>Thank you for your business!</div>
+          <div style={{ marginTop: "2px", color: "black" }}>
             This is a computer-generated invoice and does not require a
             signature.
           </div>

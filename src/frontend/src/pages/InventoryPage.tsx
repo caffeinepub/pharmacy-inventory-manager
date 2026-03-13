@@ -300,7 +300,7 @@ function OpeningStockDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5" />
@@ -311,7 +311,7 @@ function OpeningStockDialog({
             will update the in-hand stock calculations.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-1 -mx-6 px-6">
+        <ScrollArea className="flex-1 min-h-0 -mx-6 px-6">
           <ScrollBar orientation="vertical" />
           <div className="space-y-3 py-4">
             {medicines.map((medicine) => (

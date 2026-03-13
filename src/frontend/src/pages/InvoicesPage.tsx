@@ -41,7 +41,10 @@ import {
   useGetFirmSettings,
   useSetDoctorMedicinePrice,
 } from "../hooks/useQueries";
-import { downloadElementAsJpeg } from "../utils/invoiceDownload";
+import {
+  downloadElementAsJpeg,
+  downloadElementAsPdf,
+} from "../utils/invoiceDownload";
 
 export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -60,63 +63,68 @@ export default function InvoicesPage() {
     (a, b) => Number(b.invoiceNumber) - Number(a.invoiceNumber),
   );
 
-  const handleViewInvoice = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
+  const sanitizeFilename = (name: string): string =>
+    name.replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_");
+
+  const getInvoiceElement = (): HTMLElement | null =>
+    document.querySelector(".invoice-container") as HTMLElement | null;
+
+  const getFilenameBase = (): string => {
+    if (!selectedInvoice) return "Invoice";
+    const num = selectedInvoice.invoiceNumber.toString().padStart(6, "0");
+    const doc = sanitizeFilename(selectedInvoice.doctorName);
+    return `Invoice-${num}-${doc}`;
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const sanitizeFilename = (name: string): string => {
-    return name.replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_");
-  };
+  const handlePrint = () => window.print();
 
   const handleDownloadJpeg = async () => {
     if (!selectedInvoice) {
       toast.error("No invoice selected");
       return;
     }
-
-    const invoiceContainer = document.querySelector(
-      ".invoice-container",
-    ) as HTMLElement | null;
-    if (!invoiceContainer) {
-      toast.error(
-        "Invoice preview not found. Please open the invoice preview first.",
-      );
+    const el = getInvoiceElement();
+    if (!el) {
+      toast.error("Invoice preview not found.");
       return;
     }
-
     try {
-      const invoiceNumber = selectedInvoice.invoiceNumber
-        .toString()
-        .padStart(6, "0");
-      const doctorName = sanitizeFilename(selectedInvoice.doctorName);
-      const filename = `Invoice-${invoiceNumber}-${doctorName}.jpeg`;
-
-      await downloadElementAsJpeg(invoiceContainer, filename);
-      toast.success("Invoice downloaded successfully!");
+      await downloadElementAsJpeg(el, `${getFilenameBase()}.jpeg`);
+      toast.success("Invoice downloaded as JPEG!");
     } catch (error) {
-      console.error("Invoice generation failed:", error);
-      toast.error(
-        `Unable to download invoice: ${(error as Error).message}. Please try again.`,
-      );
+      console.error("Invoice JPEG failed:", error);
+      toast.error(`Unable to download JPEG: ${(error as Error).message}`);
     }
   };
 
-  const handleDeleteClick = (invoiceNumber: bigint) => {
-    setDeleteInvoiceNumber(invoiceNumber);
+  const handleDownloadPdf = async () => {
+    if (!selectedInvoice) {
+      toast.error("No invoice selected");
+      return;
+    }
+    const el = getInvoiceElement();
+    if (!el) {
+      toast.error("Invoice preview not found.");
+      return;
+    }
+    try {
+      await downloadElementAsPdf(el, `${getFilenameBase()}.pdf`);
+      toast.success("Invoice downloaded as PDF!");
+    } catch (error) {
+      console.error("Invoice PDF failed:", error);
+      toast.error(`Unable to download PDF: ${(error as Error).message}`);
+    }
   };
+
+  const handleDeleteClick = (invoiceNumber: bigint) =>
+    setDeleteInvoiceNumber(invoiceNumber);
 
   const handleConfirmDelete = async () => {
     if (!deleteInvoiceNumber) return;
-
     const invoiceToDelete = sortedInvoices.find(
       (inv) => inv.invoiceNumber === deleteInvoiceNumber,
     );
     if (!invoiceToDelete) return;
-
     try {
       await deleteInvoice.mutateAsync({
         invoiceNumber: deleteInvoiceNumber,
@@ -127,9 +135,8 @@ export default function InvoicesPage() {
       });
       toast.success("Invoice deleted and stock restored");
       setDeleteInvoiceNumber(null);
-      if (selectedInvoice?.invoiceNumber === deleteInvoiceNumber) {
+      if (selectedInvoice?.invoiceNumber === deleteInvoiceNumber)
         setSelectedInvoice(null);
-      }
     } catch (error) {
       toast.error(`Failed to delete invoice: ${(error as Error).message}`);
     }
@@ -138,15 +145,12 @@ export default function InvoicesPage() {
   const handleSaveInvoice = async (data: EditableInvoiceData) => {
     if (!selectedInvoice) return;
 
-    // 1. Update doctor pricing for changed rates
     if (selectedInvoice.doctorName) {
       const priceUpdates = data.items
-        .map((item, i) => {
-          const originalRate = Number(
-            selectedInvoice.items[i]?.sellingPrice ?? 0,
-          );
-          return { item, originalRate };
-        })
+        .map((item, i) => ({
+          item,
+          originalRate: Number(selectedInvoice.items[i]?.sellingPrice ?? 0),
+        }))
         .filter(({ item, originalRate }) => item.rate !== originalRate);
 
       await Promise.all(
@@ -158,18 +162,15 @@ export default function InvoicesPage() {
           }),
         ),
       );
-
-      if (priceUpdates.length > 0) {
+      if (priceUpdates.length > 0)
         queryClient.invalidateQueries({ queryKey: ["doctors"] });
-      }
     }
 
-    // 2. Rebuild the invoice object with updated values so the UI reflects changes
     const newSubtotal = data.items.reduce((s, item) => s + item.amount, 0);
     const newGst =
       data.gstOverride !== null
-        ? data.gstOverride
-        : Number.parseFloat(((newSubtotal * 5) / 100).toFixed(2));
+        ? Math.round(data.gstOverride)
+        : Math.round((newSubtotal * 5) / 100);
     const newGrandTotal = Number.parseFloat((newSubtotal + newGst).toFixed(2));
     const newAmountDue = Math.max(
       0,
@@ -201,13 +202,12 @@ export default function InvoicesPage() {
     const updatedInvoice: Invoice = {
       ...selectedInvoice,
       subtotal: BigInt(Math.round(newSubtotal)),
-      gstAmount: BigInt(Math.round(newGst)),
+      gstAmount: BigInt(newGst),
       grandTotal: BigInt(Math.round(newGrandTotal)),
       amountDue: BigInt(Math.round(newAmountDue)),
       items: updatedItems,
     };
 
-    // 3. Update query cache so the invoice list table also reflects the new totals
     queryClient.setQueryData<Invoice[]>(["invoices"], (old) => {
       if (!old) return old;
       return old.map((inv) =>
@@ -216,10 +216,7 @@ export default function InvoicesPage() {
           : inv,
       );
     });
-
-    // 4. Update selectedInvoice so InvoicePreview resets to the saved state
     setSelectedInvoice(updatedInvoice);
-
     toast.success("Invoice saved and recalculated successfully.");
   };
 
@@ -296,7 +293,7 @@ export default function InvoicesPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleViewInvoice(invoice)}
+                        onClick={() => setSelectedInvoice(invoice)}
                         className="gap-2"
                         data-ocid="invoices.view_button"
                       >
@@ -321,20 +318,22 @@ export default function InvoicesPage() {
         </div>
       )}
 
+      {/* Full-page invoice preview dialog */}
       <Dialog
         open={selectedInvoice !== null}
         onOpenChange={() => setSelectedInvoice(null)}
       >
-        <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
-          <DialogHeader className="print:hidden">
-            <DialogTitle className="flex items-center justify-between">
+        <DialogContent className="w-[95vw] max-w-3xl max-h-[95vh] overflow-y-auto p-4">
+          <DialogHeader className="print:hidden sticky top-0 bg-background z-10 pb-3 border-b mb-3">
+            <DialogTitle className="flex items-center justify-between flex-wrap gap-2">
               <span>
                 Invoice #
                 {selectedInvoice?.invoiceNumber.toString().padStart(6, "0")}
               </span>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button
                   onClick={handlePrint}
+                  variant="outline"
                   className="gap-2"
                   data-ocid="invoices.print_button"
                 >
@@ -348,21 +347,32 @@ export default function InvoicesPage() {
                   data-ocid="invoices.download_button"
                 >
                   <Download className="w-4 h-4" />
-                  Download as JPEG
+                  Save as JPEG
+                </Button>
+                <Button
+                  onClick={handleDownloadPdf}
+                  className="gap-2"
+                  data-ocid="invoices.pdf_button"
+                >
+                  <FileText className="w-4 h-4" />
+                  Save as PDF
                 </Button>
               </div>
             </DialogTitle>
           </DialogHeader>
 
-          {selectedInvoice && (
-            <InvoicePreview
-              invoice={selectedInvoice}
-              firmSettings={firmSettings}
-              medicines={medicines}
-              doctors={doctors}
-              onSave={handleSaveInvoice}
-            />
-          )}
+          {/* Invoice centred in the dialog with overflow visible */}
+          <div className="flex justify-center overflow-visible">
+            {selectedInvoice && (
+              <InvoicePreview
+                invoice={selectedInvoice}
+                firmSettings={firmSettings}
+                medicines={medicines}
+                doctors={doctors}
+                onSave={handleSaveInvoice}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

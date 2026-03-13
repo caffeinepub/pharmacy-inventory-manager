@@ -1,55 +1,53 @@
 /**
- * Captures an HTML element as a JPEG image and triggers download.
- * The captured output matches the on-screen preview exactly.
- * Uses a cloned node rendered off-screen to avoid Dialog/modal clipping issues.
+ * Captures an HTML element as a JPEG or PDF and triggers download.
+ * Uses html2canvas for image capture and jsPDF for PDF generation.
  *
- * IMPORTANT: This utility strips all oklch() color references from the clone
- * before passing to html2canvas, which does not support oklch().
+ * OKLCH fix: in onclone, we remove all external stylesheets from the cloned
+ * document so CSS custom properties with oklch() are never resolved.
+ * A safe fallback stylesheet with plain hex colors is injected instead.
  */
 
-// Type declaration for dynamically loaded html2canvas
 declare global {
   interface Window {
     html2canvas?: (
       element: HTMLElement,
-      options?: {
-        scale?: number;
-        backgroundColor?: string;
-        useCORS?: boolean;
-        logging?: boolean;
-        width?: number;
-        height?: number;
-        windowWidth?: number;
-        windowHeight?: number;
-        scrollX?: number;
-        scrollY?: number;
-        x?: number;
-        y?: number;
-        foreignObjectRendering?: boolean;
-        removeContainer?: boolean;
-        allowTaint?: boolean;
-        onclone?: (clonedDoc: Document) => void;
-      },
+      options?: Record<string, unknown>,
     ) => Promise<HTMLCanvasElement>;
+    jspdf?: {
+      jsPDF: new (
+        orientation: string,
+        unit: string,
+        format: string | number[],
+      ) => JsPDFInstance;
+    };
   }
+}
+
+interface JsPDFInstance {
+  addImage(
+    dataUrl: string,
+    format: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): void;
+  save(filename: string): void;
+  internal: { pageSize: { getWidth(): number; getHeight(): number } };
 }
 
 async function loadHtml2Canvas(): Promise<
   NonNullable<typeof window.html2canvas>
 > {
   if (window.html2canvas) return window.html2canvas;
-
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src =
       "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
     script.crossOrigin = "anonymous";
     script.onload = () => {
-      if (window.html2canvas) {
-        resolve(window.html2canvas);
-      } else {
-        reject(new Error("html2canvas loaded but not available on window"));
-      }
+      if (window.html2canvas) resolve(window.html2canvas);
+      else reject(new Error("html2canvas loaded but not available on window"));
     };
     script.onerror = () =>
       reject(new Error("Failed to load html2canvas from CDN"));
@@ -57,222 +55,142 @@ async function loadHtml2Canvas(): Promise<
   });
 }
 
+async function loadJsPDF(): Promise<JsPDFInstance> {
+  if (window.jspdf?.jsPDF)
+    return new window.jspdf.jsPDF("portrait", "mm", "a5");
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src =
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    script.crossOrigin = "anonymous";
+    script.onload = () => {
+      if (window.jspdf?.jsPDF)
+        resolve(new window.jspdf.jsPDF("portrait", "mm", "a5"));
+      else reject(new Error("jsPDF loaded but not available on window"));
+    };
+    script.onerror = () => reject(new Error("Failed to load jsPDF from CDN"));
+    document.head.appendChild(script);
+  });
+}
+
+/** Safe stylesheet injected into the clone — no oklch, plain hex only. */
+const SAFE_STYLESHEET = `
+  html, body {
+    background: white !important;
+    color: black !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+  table {
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+    width: 100% !important;
+  }
+  th, td {
+    border: 1px solid black !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    vertical-align: middle !important;
+    padding: 4px 5px !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+    box-sizing: border-box !important;
+    color: black !important;
+  }
+  th {
+    background-color: #e5e7eb !important;
+    font-weight: 600 !important;
+    font-size: 8px !important;
+    text-align: center !important;
+  }
+  td { background-color: white !important; font-size: 8.5px !important; }
+  tr { height: auto !important; }
+  tfoot tr td { background-color: #f3f4f6 !important; }
+  strong, b { color: black !important; }
+  span { display: inline; overflow: visible; color: black !important; }
+  div { overflow: visible !important; }
+  .rupee-cell { display: flex !important; align-items: center !important; justify-content: center !important; gap: 1px !important; }
+  .rupee-prefix { color: black !important; flex-shrink: 0 !important; }
+  .invoice-container {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+`;
+
 /**
- * Strips oklch color references from all elements in a subtree.
- * html2canvas does not support the oklch() color function.
+ * Normalise all inline oklch() references on every element in the subtree,
+ * and force text colour to black inside .invoice-container.
  */
-function stripOklchFromElement(root: HTMLElement): void {
-  const allElements = root.querySelectorAll("*");
-  const styleProps = [
-    "color",
-    "background",
-    "background-color",
-    "border-color",
-    "border-top-color",
-    "border-right-color",
-    "border-bottom-color",
-    "border-left-color",
-    "outline-color",
-    "text-decoration-color",
-    "fill",
-    "stroke",
-    "box-shadow",
-  ];
-
-  const elementsToProcess: Element[] = [root, ...Array.from(allElements)];
-
-  for (const el of elementsToProcess) {
+function normalizeColors(element: HTMLElement): void {
+  const allEls = element.querySelectorAll("*");
+  for (const el of allEls) {
     if (!(el instanceof HTMLElement)) continue;
-    for (const prop of styleProps) {
-      const val = el.style.getPropertyValue(prop);
-      if (val?.includes("oklch")) {
-        el.style.removeProperty(prop);
-      }
+    const style = el.getAttribute("style") || "";
+    if (style.includes("oklch")) {
+      el.setAttribute("style", style.replace(/oklch\([^)]+\)/g, "#000"));
     }
-    if (el.style.cssText?.includes("oklch")) {
-      const parts = el.style.cssText.split(";");
-      const safe = parts.filter((p) => !p.includes("oklch"));
-      el.style.cssText = safe.join(";");
+    // Force black text inside the invoice
+    if (el.closest(".invoice-container")) {
+      el.style.color = "#000";
+    }
+    // Remove overflow:hidden from every element so nothing clips
+    const computedOverflow = el.style.overflow;
+    if (computedOverflow === "hidden") {
+      el.style.overflow = "visible";
     }
   }
 }
 
 /**
- * Injects a safe override stylesheet into the wrapper so html2canvas
- * sees only browser-safe colors. Also ensures table cells are not clipped.
+ * Prepares a clean off-screen clone of the element for capture:
+ * - Removes Save Changes button and logo images
+ * - Replaces inputs/textareas with plain spans
+ * - Removes style tags (oklch lives in them)
  */
-function injectSafeStylesheet(container: HTMLElement): void {
-  const safeStyle = document.createElement("style");
-  safeStyle.textContent = `
-    * {
-      background-color: white;
-      color: black;
-      border-color: #cccccc;
-      outline-color: #cccccc;
-      box-shadow: none !important;
-      text-shadow: none !important;
-    }
-    table {
-      border-color: black !important;
-      border-collapse: collapse !important;
-      table-layout: auto !important;
-      width: 100% !important;
-    }
-    th, td {
-      border: 1px solid black !important;
-      border-color: black !important;
-      height: auto !important;
-      min-height: 0 !important;
-      overflow: visible !important;
-      vertical-align: middle !important;
-      padding: 4px 5px !important;
-      word-break: break-word !important;
-      white-space: normal !important;
-      box-sizing: border-box !important;
-    }
-    th {
-      background-color: #e5e7eb !important;
-      color: black !important;
-      font-weight: 600 !important;
-      font-size: 8px !important;
-      text-align: center !important;
-    }
-    td {
-      background-color: white !important;
-      color: black !important;
-      font-size: 8.5px !important;
-    }
-    tr {
-      height: auto !important;
-    }
-    tbody tr td {
-      background-color: white !important;
-    }
-    tfoot tr, tfoot tr td {
-      background-color: #f3f4f6 !important;
-    }
-    .text-green-600, .text-green-700 {
-      color: #16a34a !important;
-    }
-    .text-red-600, .text-destructive {
-      color: #dc2626 !important;
-    }
-    .bg-white {
-      background-color: #ffffff !important;
-    }
-    .text-black {
-      color: #000000 !important;
-    }
-    strong, b {
-      color: black !important;
-    }
-    /* Ensure rupee prefix spans are inline */
-    .rupee-cell {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      gap: 1px !important;
-    }
-    .rupee-prefix {
-      color: black !important;
-      flex-shrink: 0 !important;
-    }
-    span {
-      display: inline !important;
-      overflow: visible !important;
-    }
-  `;
-  container.insertBefore(safeStyle, container.firstChild);
-}
-
-/**
- * Downloads a specific HTML element as a JPEG image.
- * - Hides Save Changes button and logo images in the output
- * - Ensures all product rows are fully captured inside the box
- * - Strips oklch colors for html2canvas compatibility
- * - Switches table-layout to auto so cells expand to fit content
- */
-export async function downloadElementAsJpeg(
-  element: HTMLElement,
-  filename: string,
-): Promise<void> {
-  if (!element) {
-    throw new Error("No element provided for download");
-  }
-
-  let html2canvas: NonNullable<typeof window.html2canvas>;
-  try {
-    html2canvas = await loadHtml2Canvas();
-  } catch (loadError) {
-    throw new Error(
-      `Could not load image capture library: ${(loadError as Error).message}`,
-    );
-  }
-
-  if (!html2canvas) {
-    throw new Error("Image capture library failed to initialize");
-  }
-
-  // Clone the element into an off-screen container so modal overflow/transform
-  // does not clip the captured content.
+function prepareClone(element: HTMLElement): {
+  clone: HTMLElement;
+  wrapper: HTMLDivElement;
+  width: number;
+} {
+  const width = element.scrollWidth || element.offsetWidth;
   const clone = element.cloneNode(true) as HTMLElement;
 
-  const width = element.scrollWidth || element.offsetWidth;
-
-  // ---- Remove elements that must NOT appear in downloaded JPEG ----
-
-  // 1. Remove Save Changes button and any print:hidden elements
-  const printHiddenEls = clone.querySelectorAll(
+  // Remove Save Changes button and print-hidden elements
+  for (const el of clone.querySelectorAll(
     ".print\\:hidden, [class*='print:hidden']",
-  );
-  for (const el of printHiddenEls) {
+  ))
     el.remove();
-  }
-  // Also find button containing "Save" or "Save Changes" text
-  const allButtons = clone.querySelectorAll("button");
-  for (const btn of allButtons) {
+  for (const btn of clone.querySelectorAll("button")) {
     if (
       btn.textContent?.toLowerCase().includes("save") ||
       btn.textContent?.toLowerCase().includes("saving")
     ) {
       const parent = btn.parentElement;
-      if (
-        parent &&
-        parent.tagName !== "TABLE" &&
-        parent.children.length === 1
-      ) {
+      if (parent && parent.tagName !== "TABLE" && parent.children.length === 1)
         parent.remove();
-      } else {
-        btn.remove();
-      }
+      else btn.remove();
     }
   }
+  // Remove images and SVGs
+  for (const img of clone.querySelectorAll("img")) img.remove();
+  for (const svg of clone.querySelectorAll("svg")) svg.remove();
 
-  // 2. Remove all logo/image elements
-  const images = clone.querySelectorAll("img");
-  for (const img of images) {
-    img.remove();
-  }
-  // Remove SVG logos
-  const svgs = clone.querySelectorAll("svg");
-  for (const svg of svgs) {
-    svg.remove();
-  }
+  // Remove style tags (these contain oklch)
+  for (const s of clone.querySelectorAll("style")) s.remove();
 
-  // ---- Fix table-layout: auto so cells expand to fit their text ----
-  const tables = clone.querySelectorAll("table");
-  for (const table of tables) {
+  // Fix table layout and cell constraints
+  for (const table of clone.querySelectorAll("table")) {
     (table as HTMLElement).style.tableLayout = "auto";
     (table as HTMLElement).style.width = "100%";
   }
-  // Remove colgroup width constraints — auto layout will size columns to fit
-  const colgroups = clone.querySelectorAll("colgroup");
-  for (const cg of colgroups) {
-    cg.remove();
-  }
-  // Ensure all table cells are unconstrained
-  const allCells = clone.querySelectorAll("td, th");
-  for (const cell of allCells) {
+  for (const cg of clone.querySelectorAll("colgroup")) cg.remove();
+  for (const cell of clone.querySelectorAll("td, th")) {
     const el = cell as HTMLElement;
     el.style.height = "auto";
     el.style.overflow = "visible";
@@ -283,84 +201,144 @@ export async function downloadElementAsJpeg(
     el.style.boxSizing = "border-box";
   }
 
-  // ---- Replace inputs/textareas with plain text so download looks clean ----
-  const inputs = clone.querySelectorAll("input");
-  for (const input of inputs) {
+  // Force the invoice-container itself to be height:auto
+  const invoiceContainer = clone.querySelector(".invoice-container");
+  if (invoiceContainer instanceof HTMLElement) {
+    invoiceContainer.style.height = "auto";
+    invoiceContainer.style.maxHeight = "none";
+    invoiceContainer.style.overflow = "visible";
+  }
+
+  // Replace inputs with spans
+  for (const input of clone.querySelectorAll("input")) {
     const span = document.createElement("span");
-    span.textContent = input.value;
-    span.style.display = "inline";
-    span.style.color = "black";
-    span.style.fontFamily = "inherit";
-    span.style.fontSize = "inherit";
-    span.style.fontWeight = "inherit";
-    span.style.lineHeight = "inherit";
-    span.style.wordBreak = "break-word";
-    span.style.whiteSpace = "normal";
-    span.style.overflow = "visible";
+    span.textContent = (input as HTMLInputElement).value;
+    Object.assign(span.style, {
+      display: "inline",
+      color: "black",
+      fontFamily: "inherit",
+      fontSize: "inherit",
+      fontWeight: "inherit",
+      lineHeight: "inherit",
+      wordBreak: "break-word",
+      whiteSpace: "normal",
+      overflow: "visible",
+    });
     input.replaceWith(span);
   }
-
-  const textareas = clone.querySelectorAll("textarea");
-  for (const textarea of textareas) {
+  for (const ta of clone.querySelectorAll("textarea")) {
     const span = document.createElement("span");
-    span.textContent = textarea.value;
-    span.style.display = "block";
-    span.style.color = "black";
-    span.style.fontFamily = "inherit";
-    span.style.fontSize = "inherit";
-    span.style.lineHeight = "1.5";
-    span.style.wordBreak = "break-word";
-    span.style.whiteSpace = "pre-wrap";
-    textarea.replaceWith(span);
+    span.textContent = (ta as HTMLTextAreaElement).value;
+    Object.assign(span.style, {
+      display: "block",
+      color: "black",
+      fontFamily: "inherit",
+      fontSize: "inherit",
+      lineHeight: "1.5",
+      wordBreak: "break-word",
+      whiteSpace: "pre-wrap",
+    });
+    ta.replaceWith(span);
   }
 
-  // Remove style elements that may contain oklch
-  const styleElements = clone.querySelectorAll("style");
-  for (const styleEl of styleElements) {
-    styleEl.remove();
+  // Normalise colors and remove overflow:hidden from all elements
+  normalizeColors(clone);
+
+  // Strip any remaining inline oklch
+  for (const el of [clone, ...Array.from(clone.querySelectorAll("*"))]) {
+    if (!(el instanceof HTMLElement)) continue;
+    if (el.style.cssText?.includes("oklch")) {
+      el.style.cssText = el.style.cssText
+        .split(";")
+        .filter((p) => !p.includes("oklch"))
+        .join(";");
+    }
   }
 
-  // ---- Build off-screen wrapper ----
+  // Build wrapper
   const wrapper = document.createElement("div");
-  wrapper.style.cssText = `
-    position: fixed;
-    top: -99999px;
-    left: -99999px;
-    width: ${width}px;
-    overflow: visible;
-    z-index: -1;
-    background: white;
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 11px;
-  `;
-  clone.style.cssText = `
-    width: ${width}px;
-    overflow: visible;
-    background: white;
-    color: black;
-    position: relative;
-    box-sizing: border-box;
-    padding: 20px 24px;
-  `;
+  wrapper.style.cssText = `position:fixed;top:-99999px;left:-99999px;width:${width}px;overflow:visible;z-index:-1;background:white;font-family:Arial,Helvetica,sans-serif;font-size:11px;`;
+  clone.style.cssText = `width:${width}px;overflow:visible;background:white;color:black;position:relative;box-sizing:border-box;padding:20px 24px;height:auto;`;
+
+  // Inject safe stylesheet
+  const safeStyle = document.createElement("style");
+  safeStyle.textContent = SAFE_STYLESHEET;
+  clone.insertBefore(safeStyle, clone.firstChild);
 
   wrapper.appendChild(clone);
+  return { clone, wrapper, width };
+}
 
-  // Strip inline oklch styles
-  stripOklchFromElement(clone);
+/** html2canvas onclone handler: strips external stylesheets so oklch vars are gone */
+function onCloneHandler(clonedDoc: Document): void {
+  // Remove ALL external link/style tags — this is the key oklch fix
+  for (const link of Array.from(
+    clonedDoc.querySelectorAll('link[rel="stylesheet"]'),
+  ))
+    link.remove();
+  for (const style of Array.from(clonedDoc.querySelectorAll("style")))
+    style.remove();
 
-  // Inject safe stylesheet (also fixes table cell overflow)
-  injectSafeStylesheet(wrapper);
+  // Inject safe stylesheet into cloned doc
+  const safeStyle = clonedDoc.createElement("style");
+  safeStyle.textContent = SAFE_STYLESHEET;
+  clonedDoc.head.appendChild(safeStyle);
 
+  // Force invoice-container height to auto
+  const containers = clonedDoc.querySelectorAll(".invoice-container");
+  for (const c of containers) {
+    if (c instanceof HTMLElement) {
+      c.style.height = "auto";
+      c.style.maxHeight = "none";
+      c.style.overflow = "visible";
+    }
+  }
+
+  // Fix table cells in cloned doc
+  for (const cell of clonedDoc.querySelectorAll("td, th")) {
+    const el = cell as HTMLElement;
+    el.style.height = "auto";
+    el.style.overflow = "visible";
+    el.style.whiteSpace = "normal";
+    el.style.wordBreak = "break-word";
+    el.style.padding = "4px 5px";
+  }
+  for (const tbl of clonedDoc.querySelectorAll("table")) {
+    (tbl as HTMLElement).style.tableLayout = "auto";
+  }
+
+  // Remove overflow:hidden from all elements in cloned doc
+  for (const el of Array.from(clonedDoc.querySelectorAll("*"))) {
+    if (!(el instanceof HTMLElement)) continue;
+    if (el.style.overflow === "hidden") {
+      el.style.overflow = "visible";
+    }
+    // Strip oklch from inline styles
+    if (el.style.cssText?.includes("oklch")) {
+      el.style.cssText = el.style.cssText
+        .split(";")
+        .filter((p) => !p.includes("oklch"))
+        .join(";");
+    }
+  }
+}
+
+async function captureCanvas(
+  element: HTMLElement,
+): Promise<{ canvas: HTMLCanvasElement; width: number }> {
+  const html2canvas = await loadHtml2Canvas();
+  const { clone, wrapper, width } = prepareClone(element);
   document.body.appendChild(wrapper);
+  void wrapper.offsetHeight; // force reflow
 
-  // Force a reflow so the browser computes correct heights for all cells
-  void wrapper.offsetHeight;
+  // Wait a tick for layout to settle
+  await new Promise((r) => setTimeout(r, 50));
 
-  // Measure natural height AFTER attaching to DOM (so layout is fully computed)
   const naturalHeight = Math.max(
     clone.scrollHeight,
     clone.offsetHeight,
     clone.getBoundingClientRect().height,
+    200, // minimum sensible height
   );
 
   let canvas: HTMLCanvasElement;
@@ -376,63 +354,62 @@ export async function downloadElementAsJpeg(
       scrollY: 0,
       allowTaint: false,
       foreignObjectRendering: false,
-      onclone: (clonedDoc: Document) => {
-        const clonedBody = clonedDoc.body;
-        if (clonedBody) {
-          const allInClone = clonedBody.querySelectorAll("*");
-          for (const el of allInClone) {
-            if (!(el instanceof HTMLElement)) continue;
-            if (el.style.cssText?.includes("oklch")) {
-              const parts = el.style.cssText.split(";");
-              const safe = parts.filter((p) => !p.includes("oklch"));
-              el.style.cssText = safe.join(";");
-            }
-          }
-          // Fix table-layout in the final cloned doc too
-          const clonedTables = clonedBody.querySelectorAll("table");
-          for (const tbl of clonedTables) {
-            (tbl as HTMLElement).style.tableLayout = "auto";
-          }
-          const clonedCells = clonedBody.querySelectorAll("td, th");
-          for (const cell of clonedCells) {
-            const el = cell as HTMLElement;
-            el.style.height = "auto";
-            el.style.overflow = "visible";
-            el.style.whiteSpace = "normal";
-            el.style.wordBreak = "break-word";
-            el.style.padding = "4px 5px";
-          }
-          const safeStyle = clonedDoc.createElement("style");
-          safeStyle.textContent = `
-            * { background-color: white; color: black; border-color: #cccccc; box-shadow: none !important; }
-            table { table-layout: auto !important; border-collapse: collapse !important; width: 100% !important; }
-            th { background-color: #e5e7eb !important; font-weight: 600 !important; text-align: center !important; }
-            th, td { border: 1px solid black !important; padding: 4px 5px !important; height: auto !important; overflow: visible !important; vertical-align: middle !important; word-break: break-word !important; white-space: normal !important; box-sizing: border-box !important; }
-            tfoot tr, tfoot tr td { background-color: #f3f4f6 !important; }
-            span { display: inline; overflow: visible; }
-          `;
-          clonedDoc.head.appendChild(safeStyle);
-        }
-      },
+      onclone: onCloneHandler,
     });
-  } catch (captureError) {
+  } catch (err) {
     document.body.removeChild(wrapper);
     throw new Error(
-      `Failed to capture invoice image: ${(captureError as Error).message}`,
+      `Failed to capture invoice image: ${(err as Error).message}`,
     );
   }
-
   document.body.removeChild(wrapper);
+  return { canvas, width };
+}
 
+/** Download invoice element as JPEG */
+export async function downloadElementAsJpeg(
+  element: HTMLElement,
+  filename: string,
+): Promise<void> {
+  if (!element) throw new Error("No element provided for download");
+  const { canvas } = await captureCanvas(element);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-  if (!dataUrl || dataUrl === "data:,") {
+  if (!dataUrl || dataUrl === "data:,")
     throw new Error("Generated image is empty");
-  }
-
   const link = document.createElement("a");
   link.download = filename;
   link.href = dataUrl;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+/** Download invoice element as PDF (A5 portrait) */
+export async function downloadElementAsPdf(
+  element: HTMLElement,
+  filename: string,
+): Promise<void> {
+  if (!element) throw new Error("No element provided for download");
+  const { canvas } = await captureCanvas(element);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+  if (!dataUrl || dataUrl === "data:,")
+    throw new Error("Generated image is empty");
+
+  const pdf = await loadJsPDF();
+  // A5 portrait: 148mm x 210mm
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+  // Scale image to fit full width of A5
+  const imgAspect = canvas.width / canvas.height;
+  const imgHeightMm = pdfWidth / imgAspect;
+  const yOffset = imgHeightMm < pdfHeight ? (pdfHeight - imgHeightMm) / 2 : 0;
+  pdf.addImage(
+    dataUrl,
+    "JPEG",
+    0,
+    yOffset,
+    pdfWidth,
+    Math.min(imgHeightMm, pdfHeight),
+  );
+  pdf.save(filename);
 }
