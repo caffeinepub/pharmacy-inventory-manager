@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ import {
   useGetAllMedicines,
   useGetFirmSettings,
   useSetDoctorMedicinePrice,
+  useSetInvoicePrinted,
 } from "../hooks/useQueries";
 import {
   downloadElementAsJpeg,
@@ -57,6 +59,7 @@ export default function InvoicesPage() {
   const { data: medicines = [] } = useGetAllMedicines();
   const deleteInvoice = useDeleteInvoice();
   const setDoctorMedicinePrice = useSetDoctorMedicinePrice();
+  const setInvoicePrinted = useSetInvoicePrinted();
   const queryClient = useQueryClient();
 
   const sortedInvoices = [...invoices].sort(
@@ -264,13 +267,16 @@ export default function InvoicesPage() {
                 <TableHead className="text-right font-semibold">
                   Grand Total
                 </TableHead>
+                <TableHead className="text-center font-semibold">
+                  Printed
+                </TableHead>
                 <TableHead className="text-right font-semibold">
                   Action
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedInvoices.map((invoice) => (
+              {sortedInvoices.map((invoice, index) => (
                 <TableRow key={Number(invoice.invoiceNumber)}>
                   <TableCell className="font-mono font-medium">
                     #{invoice.invoiceNumber.toString().padStart(6, "0")}
@@ -287,6 +293,21 @@ export default function InvoicesPage() {
                   </TableCell>
                   <TableCell className="text-right font-semibold text-primary">
                     ₹{Number(invoice.grandTotal).toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex justify-center">
+                      <Checkbox
+                        checked={invoice.printed}
+                        onCheckedChange={(checked) =>
+                          setInvoicePrinted.mutate({
+                            invoiceNumber: invoice.invoiceNumber,
+                            printed: !!checked,
+                          })
+                        }
+                        aria-label="Mark as printed"
+                        data-ocid={`invoices.printed.checkbox.${index + 1}`}
+                      />
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-2 justify-end">

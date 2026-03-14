@@ -73,8 +73,10 @@ export interface Invoice {
     items: Array<InvoiceItem>;
     doctorName: string;
     subtotal: bigint;
+    printed: boolean;
 }
 export interface Doctor {
+    dilNumber: string;
     name: string;
     customPrices: Array<[string, bigint]>;
     shippingAddress: string;
@@ -92,7 +94,7 @@ export enum ProfitLossTimeFilter {
     weekly = "weekly"
 }
 export interface backendInterface {
-    addDoctor(name: string, shippingAddress: string): Promise<void>;
+    addDoctor(name: string, shippingAddress: string, dilNumber: string): Promise<void>;
     addOrUpdateMedicine(name: string, openingStock: bigint, sampling: bigint, batchNumber: string, hsnCode: string, expiryDate: string, purchaseRate: bigint, baseSellingRate: bigint, mrp: bigint): Promise<void>;
     backup(): Promise<BackupRecord>;
     createInvoice(doctorName: string, items: Array<[string, bigint]>, paymentType: string): Promise<bigint>;
@@ -118,7 +120,8 @@ export interface backendInterface {
     removeDoctorMedicinePrice(doctorName: string, medicineName: string): Promise<void>;
     setAppPin(pin: string): Promise<void>;
     setDoctorMedicinePrice(doctorName: string, medicineName: string, price: bigint): Promise<void>;
-    updateDoctor(name: string, shippingAddress: string): Promise<void>;
+    setInvoicePrinted(invoiceNumber: bigint, printed: boolean): Promise<void>;
+    updateDoctor(name: string, shippingAddress: string, dilNumber: string): Promise<void>;
     updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, defaultShippingAddress: string, dilNumber: string): Promise<void>;
     updateOpeningStock(name: string, openingStock: bigint): Promise<void>;
     updateSampling(name: string, sampling: bigint): Promise<void>;

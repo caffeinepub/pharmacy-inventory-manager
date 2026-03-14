@@ -109,7 +109,7 @@ export function buildEditableInvoice(
   invoice: Invoice,
   firmSettings: FirmSettings | undefined,
   medicines: Medicine[],
-  doctors: { name: string; shippingAddress: string }[],
+  doctors: { name: string; shippingAddress: string; dilNumber?: string }[],
 ): EditableInvoiceData {
   const doctor = doctors.find((d) => d.name === invoice.doctorName);
   const shippingAddress =
@@ -145,7 +145,7 @@ export function buildEditableInvoice(
     firmName: firmSettings?.name || "PharmaCare",
     firmAddress: firmSettings?.address || "",
     firmGstin: firmSettings?.gstin || "",
-    firmDilNumber: firmSettings?.dilNumber || "",
+    firmDilNumber: doctor?.dilNumber?.trim() ? doctor.dilNumber : "N/A",
     firmContact: firmSettings?.contact || "",
     shippingAddress,
     invoiceNumber: invoice.invoiceNumber.toString().padStart(6, "0"),
@@ -165,7 +165,7 @@ interface InvoicePreviewProps {
   invoice: Invoice;
   firmSettings: FirmSettings | undefined;
   medicines: Medicine[];
-  doctors: { name: string; shippingAddress: string }[];
+  doctors: { name: string; shippingAddress: string; dilNumber?: string }[];
   onSave?: (data: EditableInvoiceData) => Promise<void>;
 }
 

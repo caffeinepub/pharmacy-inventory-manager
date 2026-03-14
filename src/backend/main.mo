@@ -24,9 +24,18 @@ actor {
     mrp : Int;
   };
 
+  // Stored type — no dilNumber, stable-compatible with previous deployment
   type Doctor = {
     name : Text;
     shippingAddress : Text;
+    customPrices : [(Text, Int)];
+  };
+
+  // Public-facing type returned to frontend — includes dilNumber
+  type DoctorWithDil = {
+    name : Text;
+    shippingAddress : Text;
+    dilNumber : Text;
     customPrices : [(Text, Int)];
   };
 
@@ -42,6 +51,7 @@ actor {
     profit : Int;
   };
 
+  // Stored type — no `printed` field so existing stable data is compatible
   type Invoice = {
     invoiceNumber : Nat;
     doctorName : Text;
@@ -54,6 +64,22 @@ actor {
     paymentType : Text;
     amountPaid : Int;
     amountDue : Int;
+  };
+
+  // Public-facing type returned to the frontend — includes `printed`
+  type InvoiceWithPrinted = {
+    invoiceNumber : Nat;
+    doctorName : Text;
+    timestamp : Int;
+    items : [InvoiceItem];
+    subtotal : Int;
+    gstAmount : Int;
+    grandTotal : Int;
+    totalProfit : Int;
+    paymentType : Text;
+    amountPaid : Int;
+    amountDue : Int;
+    printed : Bool;
   };
 
   type FirmSettings = {
@@ -84,8 +110,8 @@ actor {
     timestamp : Int;
     version : Text;
     medicines : [Medicine];
-    doctors : [Doctor];
-    invoices : [Invoice];
+    doctors : [DoctorWithDil];
+    invoices : [InvoiceWithPrinted];
     firmSettings : ?FirmSettings;
     paymentRecords : [(Nat, [PaymentRecord])];
   };
@@ -100,13 +126,51 @@ actor {
 
   let medicines = Map.empty<Text, Medicine>();
   let doctors = Map.empty<Text, Doctor>();
+  // Separate stable map for doctor DIL numbers — new, defaults to "" when absent
+  let doctorDilNumbers = Map.empty<Text, Text>();
+  // Stored without `printed` — stable-compatible with previous deployment
   let invoices = Map.empty<Nat, Invoice>();
+  // Separate stable map for printed status — new, defaults to false when absent
+  let invoicePrinted = Map.empty<Nat, Bool>();
   var nextInvoiceNumber = 1;
   var firmSettings : ?FirmSettings = null;
   var appPin : ?Text = null;
 
-  // New field
   let paymentRecords = Map.empty<Nat, List.List<PaymentRecord>>();
+
+  // Helper: attach dilNumber to a stored Doctor
+  func withDil(doctor : Doctor) : DoctorWithDil {
+    {
+      name = doctor.name;
+      shippingAddress = doctor.shippingAddress;
+      dilNumber = switch (doctorDilNumbers.get(doctor.name)) {
+        case (?d) { d };
+        case (null) { "" };
+      };
+      customPrices = doctor.customPrices;
+    };
+  };
+
+  // Helper: attach printed status to a stored Invoice
+  func withPrinted(invoice : Invoice) : InvoiceWithPrinted {
+    {
+      invoiceNumber = invoice.invoiceNumber;
+      doctorName = invoice.doctorName;
+      timestamp = invoice.timestamp;
+      items = invoice.items;
+      subtotal = invoice.subtotal;
+      gstAmount = invoice.gstAmount;
+      grandTotal = invoice.grandTotal;
+      totalProfit = invoice.totalProfit;
+      paymentType = invoice.paymentType;
+      amountPaid = invoice.amountPaid;
+      amountDue = invoice.amountDue;
+      printed = switch (invoicePrinted.get(invoice.invoiceNumber)) {
+        case (?p) { p };
+        case (null) { false };
+      };
+    };
+  };
 
   // Medicine Management
   public shared ({ caller }) func addOrUpdateMedicine(
@@ -251,6 +315,7 @@ actor {
   public shared ({ caller }) func addDoctor(
     name : Text,
     shippingAddress : Text,
+    dilNumber : Text,
   ) : async () {
     if (name.isEmpty() or shippingAddress.isEmpty()) {
       switch (firmSettings) {
@@ -272,23 +337,26 @@ actor {
       customPrices = [];
     };
     doctors.add(name, doctor);
+    doctorDilNumbers.add(name, dilNumber);
   };
 
   public shared ({ caller }) func updateDoctor(
     name : Text,
     shippingAddress : Text,
+    dilNumber : Text,
   ) : async () {
     switch (doctors.get(name)) {
       case (null) {
         Runtime.trap("Doctor not found");
       };
-      case (?_) {
+      case (?existing) {
         let updatedDoctor : Doctor = {
           name;
           shippingAddress;
-          customPrices = [];
+          customPrices = existing.customPrices;
         };
         doctors.add(name, updatedDoctor);
+        doctorDilNumbers.add(name, dilNumber);
       };
     };
   };
@@ -298,15 +366,18 @@ actor {
       Runtime.trap("Doctor not found");
     };
     doctors.remove(name);
+    doctorDilNumbers.remove(name);
   };
 
-  public query ({ caller }) func getDoctor(name : Text) : async ?Doctor {
-    doctors.get(name);
+  public query ({ caller }) func getDoctor(name : Text) : async ?DoctorWithDil {
+    switch (doctors.get(name)) {
+      case (null) { null };
+      case (?doc) { ?withDil(doc) };
+    };
   };
 
-  public query ({ caller }) func getAllDoctors() : async [Doctor] {
-    let valuesIter = doctors.values();
-    valuesIter.toArray();
+  public query ({ caller }) func getAllDoctors() : async [DoctorWithDil] {
+    doctors.values().map(withDil).toArray();
   };
 
   // Doctor Custom Pricing Functions
@@ -442,7 +513,6 @@ actor {
             };
             case (?medicine) {
               let baseAmount = sellingRate * quantity;
-              let gstAmount = (baseAmount * 5) / 100;
               let invoiceItem : InvoiceItem = {
                 medicineName = medicine.name;
                 batchNumber = medicine.batchNumber;
@@ -485,10 +555,19 @@ actor {
           amountDue = if (paymentType == "cash") { 0 } else { grandTotal };
         };
         invoices.add(nextInvoiceNumber, invoice);
+        // printed defaults to false — stored in separate map (absent = false)
         nextInvoiceNumber += 1;
         invoice.invoiceNumber;
       };
     };
+  };
+
+  // Toggle the printed flag — stored in a separate stable map, no Invoice migration needed
+  public shared ({ caller }) func setInvoicePrinted(invoiceNumber : Nat, printed : Bool) : async () {
+    if (not invoices.containsKey(invoiceNumber)) {
+      Runtime.trap("Invoice not found");
+    };
+    invoicePrinted.add(invoiceNumber, printed);
   };
 
   public shared ({ caller }) func deleteInvoice(invoiceNumber : Nat) : async () {
@@ -496,15 +575,18 @@ actor {
       Runtime.trap("Invoice not found");
     };
     invoices.remove(invoiceNumber);
+    invoicePrinted.remove(invoiceNumber);
   };
 
-  public query ({ caller }) func getInvoice(invoiceNumber : Nat) : async ?Invoice {
-    invoices.get(invoiceNumber);
+  public query ({ caller }) func getInvoice(invoiceNumber : Nat) : async ?InvoiceWithPrinted {
+    switch (invoices.get(invoiceNumber)) {
+      case (null) { null };
+      case (?inv) { ?withPrinted(inv) };
+    };
   };
 
-  public query ({ caller }) func getAllInvoices() : async [Invoice] {
-    let valuesIter = invoices.values();
-    valuesIter.toArray();
+  public query ({ caller }) func getAllInvoices() : async [InvoiceWithPrinted] {
+    invoices.values().map(withPrinted).toArray();
   };
 
   public type ProfitLossTimeFilter = { #daily; #weekly; #monthly; #all };
@@ -598,8 +680,8 @@ actor {
       timestamp = Time.now();
       version = "2.0.0";
       medicines = medicines.values().toArray();
-      doctors = doctors.values().toArray();
-      invoices = invoices.values().toArray();
+      doctors = doctors.values().map(withDil).toArray();
+      invoices = invoices.values().map(withPrinted).toArray();
       firmSettings;
       paymentRecords = paymentRecords.toArray().map(
         func((key, paymentsList)) {

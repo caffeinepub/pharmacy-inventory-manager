@@ -124,9 +124,14 @@ export function useAddDoctor() {
     mutationFn: async (params: {
       name: string;
       shippingAddress: string;
+      dilNumber: string;
     }) => {
       if (!actor) throw new Error("Actor not initialized");
-      return actor.addDoctor(params.name, params.shippingAddress);
+      return actor.addDoctor(
+        params.name,
+        params.shippingAddress,
+        params.dilNumber,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["doctors"] });
@@ -141,9 +146,14 @@ export function useUpdateDoctor() {
     mutationFn: async (params: {
       name: string;
       shippingAddress: string;
+      dilNumber: string;
     }) => {
       if (!actor) throw new Error("Actor not initialized");
-      return actor.updateDoctor(params.name, params.shippingAddress);
+      return actor.updateDoctor(
+        params.name,
+        params.shippingAddress,
+        params.dilNumber,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["doctors"] });
@@ -295,6 +305,20 @@ export function useCreateInvoice() {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["medicines"] });
       queryClient.invalidateQueries({ queryKey: ["ledgerSummary"] });
+    },
+  });
+}
+
+export function useSetInvoicePrinted() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { invoiceNumber: bigint; printed: boolean }) => {
+      if (!actor) throw new Error("Actor not initialized");
+      return actor.setInvoicePrinted(params.invoiceNumber, params.printed);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
   });
 }

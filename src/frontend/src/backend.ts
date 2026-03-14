@@ -155,8 +155,10 @@ export interface Invoice {
     items: Array<InvoiceItem>;
     doctorName: string;
     subtotal: bigint;
+    printed: boolean;
 }
 export interface Doctor {
+    dilNumber: string;
     name: string;
     customPrices: Array<[string, bigint]>;
     shippingAddress: string;
@@ -174,7 +176,7 @@ export enum ProfitLossTimeFilter {
     weekly = "weekly"
 }
 export interface backendInterface {
-    addDoctor(name: string, shippingAddress: string): Promise<void>;
+    addDoctor(name: string, shippingAddress: string, dilNumber: string): Promise<void>;
     addOrUpdateMedicine(name: string, openingStock: bigint, sampling: bigint, batchNumber: string, hsnCode: string, expiryDate: string, purchaseRate: bigint, baseSellingRate: bigint, mrp: bigint): Promise<void>;
     backup(): Promise<BackupRecord>;
     createInvoice(doctorName: string, items: Array<[string, bigint]>, paymentType: string): Promise<bigint>;
@@ -200,7 +202,8 @@ export interface backendInterface {
     removeDoctorMedicinePrice(doctorName: string, medicineName: string): Promise<void>;
     setAppPin(pin: string): Promise<void>;
     setDoctorMedicinePrice(doctorName: string, medicineName: string, price: bigint): Promise<void>;
-    updateDoctor(name: string, shippingAddress: string): Promise<void>;
+    setInvoicePrinted(invoiceNumber: bigint, printed: boolean): Promise<void>;
+    updateDoctor(name: string, shippingAddress: string, dilNumber: string): Promise<void>;
     updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, defaultShippingAddress: string, dilNumber: string): Promise<void>;
     updateOpeningStock(name: string, openingStock: bigint): Promise<void>;
     updateSampling(name: string, sampling: bigint): Promise<void>;
@@ -208,17 +211,17 @@ export interface backendInterface {
 import type { BackupRecord as _BackupRecord, Doctor as _Doctor, FirmSettings as _FirmSettings, Invoice as _Invoice, Medicine as _Medicine, PaymentRecord as _PaymentRecord, ProfitLossTimeFilter as _ProfitLossTimeFilter } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
-    async addDoctor(arg0: string, arg1: string): Promise<void> {
+    async addDoctor(arg0: string, arg1: string, arg2: string): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.addDoctor(arg0, arg1);
+                const result = await this.actor.addDoctor(arg0, arg1, arg2);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.addDoctor(arg0, arg1);
+            const result = await this.actor.addDoctor(arg0, arg1, arg2);
             return result;
         }
     }
@@ -572,17 +575,31 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async updateDoctor(arg0: string, arg1: string): Promise<void> {
+    async setInvoicePrinted(arg0: bigint, arg1: boolean): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateDoctor(arg0, arg1);
+                const result = await (this.actor as any).setInvoicePrinted(arg0, arg1);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateDoctor(arg0, arg1);
+            const result = await (this.actor as any).setInvoicePrinted(arg0, arg1);
+            return result;
+        }
+    }
+    async updateDoctor(arg0: string, arg1: string, arg2: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateDoctor(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateDoctor(arg0, arg1, arg2);
             return result;
         }
     }
