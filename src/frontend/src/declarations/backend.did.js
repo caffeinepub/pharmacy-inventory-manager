@@ -31,6 +31,7 @@ export const Invoice = IDL.Record({
   'items' : IDL.Vec(InvoiceItem),
   'doctorName' : IDL.Text,
   'subtotal' : IDL.Int,
+  'printed' : IDL.Bool,
 });
 export const Medicine = IDL.Record({
   'mrp' : IDL.Int,
@@ -57,6 +58,7 @@ export const Doctor = IDL.Record({
   'name' : IDL.Text,
   'customPrices' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
   'shippingAddress' : IDL.Text,
+  'dilNumber' : IDL.Text,
 });
 export const PaymentRecord = IDL.Record({
   'invoiceNumber' : IDL.Nat,
@@ -94,7 +96,8 @@ export const ProfitLossStats = IDL.Record({
 });
 
 export const idlService = IDL.Service({
-  'addDoctor' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  // dilNumber is opt text for backward-compatible canister upgrades
+  'addDoctor' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
   'addOrUpdateMedicine' : IDL.Func(
       [
         IDL.Text,
@@ -154,7 +157,9 @@ export const idlService = IDL.Service({
   'removeDoctorMedicinePrice' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'setAppPin' : IDL.Func([IDL.Text], [], []),
   'setDoctorMedicinePrice' : IDL.Func([IDL.Text, IDL.Text, IDL.Int], [], []),
-  'updateDoctor' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'setInvoicePrinted' : IDL.Func([IDL.Nat, IDL.Bool], [], []),
+  // dilNumber is opt text for backward-compatible canister upgrades
+  'updateDoctor' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
   'updateFirmSettings' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [],
@@ -190,6 +195,7 @@ export const idlFactory = ({ IDL }) => {
     'items' : IDL.Vec(InvoiceItem),
     'doctorName' : IDL.Text,
     'subtotal' : IDL.Int,
+    'printed' : IDL.Bool,
   });
   const Medicine = IDL.Record({
     'mrp' : IDL.Int,
@@ -216,6 +222,7 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'customPrices' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
     'shippingAddress' : IDL.Text,
+    'dilNumber' : IDL.Text,
   });
   const PaymentRecord = IDL.Record({
     'invoiceNumber' : IDL.Nat,
@@ -253,7 +260,8 @@ export const idlFactory = ({ IDL }) => {
   });
   
   return IDL.Service({
-    'addDoctor' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    // dilNumber is opt text for backward-compatible canister upgrades
+    'addDoctor' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
     'addOrUpdateMedicine' : IDL.Func(
         [
           IDL.Text,
@@ -313,7 +321,9 @@ export const idlFactory = ({ IDL }) => {
     'removeDoctorMedicinePrice' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'setAppPin' : IDL.Func([IDL.Text], [], []),
     'setDoctorMedicinePrice' : IDL.Func([IDL.Text, IDL.Text, IDL.Int], [], []),
-    'updateDoctor' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'setInvoicePrinted' : IDL.Func([IDL.Nat, IDL.Bool], [], []),
+    // dilNumber is opt text for backward-compatible canister upgrades
+    'updateDoctor' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
     'updateFirmSettings' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [],

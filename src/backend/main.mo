@@ -312,10 +312,11 @@ actor {
   };
 
   // Doctor Management
+  // dilNumber is opt text so this function can be upgraded from older versions
   public shared ({ caller }) func addDoctor(
     name : Text,
     shippingAddress : Text,
-    dilNumber : Text,
+    dilNumber : ?Text,
   ) : async () {
     if (name.isEmpty() or shippingAddress.isEmpty()) {
       switch (firmSettings) {
@@ -337,13 +338,14 @@ actor {
       customPrices = [];
     };
     doctors.add(name, doctor);
-    doctorDilNumbers.add(name, dilNumber);
+    doctorDilNumbers.add(name, switch (dilNumber) { case (?d) d; case (null) "" });
   };
 
+  // dilNumber is opt text so this function can be upgraded from older versions
   public shared ({ caller }) func updateDoctor(
     name : Text,
     shippingAddress : Text,
-    dilNumber : Text,
+    dilNumber : ?Text,
   ) : async () {
     switch (doctors.get(name)) {
       case (null) {
@@ -356,7 +358,7 @@ actor {
           customPrices = existing.customPrices;
         };
         doctors.add(name, updatedDoctor);
-        doctorDilNumbers.add(name, dilNumber);
+        doctorDilNumbers.add(name, switch (dilNumber) { case (?d) d; case (null) "" });
       };
     };
   };

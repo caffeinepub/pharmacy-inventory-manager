@@ -46,7 +46,6 @@ import type { Medicine } from "../backend.d";
 import {
   useAddMedicine,
   useDeleteMedicine,
-  useGetAllInvoices,
   useGetAllMedicines,
   useUpdateMedicine,
   useUpdateOpeningStock,
@@ -425,33 +424,10 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: medicines = [], isLoading } = useGetAllMedicines();
-  const { data: invoices = [] } = useGetAllInvoices();
   const addMedicine = useAddMedicine();
   const updateMedicine = useUpdateMedicine();
   const deleteMedicine = useDeleteMedicine();
   const updateSampling = useUpdateSampling();
-
-  // Calculate total billed quantity for each medicine
-  const getTotalBilledQuantity = useCallback(
-    (medicineName: string): number => {
-      return invoices.reduce((total, invoice) => {
-        const item = invoice.items.find((i) => i.medicineName === medicineName);
-        return total + (item ? Number(item.quantity) : 0);
-      }, 0);
-    },
-    [invoices],
-  );
-
-  // Calculate in-hand stock for a medicine
-  const getInHandStock = useCallback(
-    (medicine: Medicine): number => {
-      const totalBilled = getTotalBilledQuantity(medicine.name);
-      return (
-        Number(medicine.openingStock) - totalBilled - Number(medicine.sampling)
-      );
-    },
-    [getTotalBilledQuantity],
-  );
 
   const handleUpdateSampling = useCallback(
     async (name: string, sampling: bigint) => {
@@ -679,7 +655,9 @@ export default function InventoryPage() {
                   </TableRow>
                 ) : (
                   filteredMedicines.map((medicine: Medicine) => {
-                    const inHandStock = getInHandStock(medicine);
+                    // In-hand stock is stored directly in medicine.quantity by the backend.
+                    // It resets to openingStock when opening stock is updated, and decreases with each sale.
+                    const inHandStock = Number(medicine.quantity);
                     const isNegative = inHandStock < 0;
                     const samplingValue =
                       Number(medicine.sampling) * Number(medicine.purchaseRate);

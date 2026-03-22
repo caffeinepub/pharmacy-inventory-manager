@@ -1,0 +1,168 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+@layer base {
+  :root {
+    /* Clean Medical - Light Theme */
+    --background: 0.98 0 0;
+    --foreground: 0.15 0.01 260;
+
+    --card: 1 0 0;
+    --card-foreground: 0.15 0.01 260;
+
+    --popover: 1 0 0;
+    --popover-foreground: 0.15 0.01 260;
+
+    --primary: 0.55 0.18 240;
+    --primary-foreground: 1 0 0;
+
+    --secondary: 0.94 0.01 240;
+    --secondary-foreground: 0.25 0.05 240;
+
+    --muted: 0.96 0.005 240;
+    --muted-foreground: 0.5 0.02 240;
+
+    --accent: 0.93 0.03 200;
+    --accent-foreground: 0.2 0.05 220;
+
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 1 0 0;
+
+    --warning: 0.75 0.18 70;
+    --warning-foreground: 0.15 0.05 50;
+
+    --success: 0.6 0.18 145;
+    --success-foreground: 1 0 0;
+
+    --border: 0.9 0.01 240;
+    --input: 0.9 0.01 240;
+    --ring: 0.55 0.18 240;
+
+    --radius: 0.5rem;
+
+    --chart-1: 0.55 0.18 240;
+    --chart-2: 0.6 0.18 145;
+    --chart-3: 0.75 0.18 70;
+    --chart-4: 0.65 0.2 310;
+    --chart-5: 0.55 0.22 25;
+
+    --sidebar: 0.97 0.005 240;
+    --sidebar-foreground: 0.15 0.01 260;
+    --sidebar-primary: 0.55 0.18 240;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.93 0.03 200;
+    --sidebar-accent-foreground: 0.2 0.05 220;
+    --sidebar-border: 0.9 0.01 240;
+    --sidebar-ring: 0.55 0.18 240;
+  }
+
+  .dark {
+    /* Dark Professional Theme */
+    --background: 0.13 0.02 260;
+    --foreground: 0.95 0.005 240;
+
+    --card: 0.17 0.02 260;
+    --card-foreground: 0.95 0.005 240;
+
+    --popover: 0.17 0.02 260;
+    --popover-foreground: 0.95 0.005 240;
+
+    --primary: 0.65 0.18 200;
+    --primary-foreground: 0.1 0.02 260;
+
+    --secondary: 0.22 0.03 260;
+    --secondary-foreground: 0.9 0.01 240;
+
+    --muted: 0.2 0.02 260;
+    --muted-foreground: 0.6 0.02 240;
+
+    --accent: 0.22 0.04 200;
+    --accent-foreground: 0.9 0.01 240;
+
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 1 0 0;
+
+    --warning: 0.75 0.18 70;
+    --warning-foreground: 0.15 0.05 50;
+
+    --success: 0.6 0.18 145;
+    --success-foreground: 1 0 0;
+
+    --border: 0.25 0.02 260;
+    --input: 0.25 0.02 260;
+    --ring: 0.65 0.18 200;
+
+    --chart-1: 0.65 0.18 200;
+    --chart-2: 0.6 0.18 145;
+    --chart-3: 0.75 0.18 70;
+    --chart-4: 0.65 0.2 310;
+    --chart-5: 0.55 0.22 25;
+
+    --sidebar: 0.15 0.02 260;
+    --sidebar-foreground: 0.95 0.005 240;
+    --sidebar-primary: 0.65 0.18 200;
+    --sidebar-primary-foreground: 0.1 0.02 260;
+    --sidebar-accent: 0.22 0.04 200;
+    --sidebar-accent-foreground: 0.9 0.01 240;
+    --sidebar-border: 0.25 0.02 260;
+    --sidebar-ring: 0.65 0.18 200;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Ensure all input fields show full text */
+  input,
+  select,
+  textarea {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 14px;
+    line-height: 1.5;
+    box-sizing: border-box;
+    overflow: visible;
+  }
+
+  /* Invoice and table text forced black for readability */
+  .invoice-container,
+  .invoice-container * {
+    color: #000 !important;
+  }
+
+  /* Print styles */
+  @media print {
+    @page {
+      size: A5 portrait;
+      margin: 0;
+    }
+
+    body * {
+      visibility: hidden;
+    }
+
+    .print-area,
+    .print-area * {
+      visibility: visible;
+    }
+
+    .print-area {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+
+    .no-print {
+      display: none !important;
+    }
+  }
+}

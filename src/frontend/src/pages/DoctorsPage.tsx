@@ -47,13 +47,11 @@ import {
 interface DoctorFormData {
   name: string;
   shippingAddress: string;
-  dilNumber: string;
 }
 
 const emptyForm: DoctorFormData = {
   name: "",
   shippingAddress: "",
-  dilNumber: "",
 };
 
 // Move DoctorForm outside to prevent cursor jumping
@@ -102,23 +100,6 @@ function DoctorForm({
           This address will appear on invoices for this doctor
         </p>
       </div>
-      <div className="grid gap-2">
-        <Label htmlFor="dilNumber">DIL No (Optional)</Label>
-        <Input
-          id="dilNumber"
-          value={formData.dilNumber}
-          onChange={(e) =>
-            setFormData((prev) => ({
-              ...prev,
-              dilNumber: e.target.value,
-            }))
-          }
-          placeholder="Enter DIL number (leave blank for N/A)"
-        />
-        <p className="text-xs text-muted-foreground">
-          This DIL number will appear on invoices for this doctor
-        </p>
-      </div>
     </div>
   );
 }
@@ -155,7 +136,6 @@ export default function DoctorsPage() {
     setFormData({
       name: doctor.name,
       shippingAddress: doctor.shippingAddress,
-      dilNumber: doctor.dilNumber || "",
     });
     setIsEditDialogOpen(true);
   };
@@ -186,7 +166,7 @@ export default function DoctorsPage() {
       await addDoctor.mutateAsync({
         name: formData.name,
         shippingAddress: formData.shippingAddress,
-        dilNumber: formData.dilNumber,
+        dilNumber: "",
       });
       toast.success("Doctor added successfully");
       setIsAddDialogOpen(false);
@@ -203,7 +183,7 @@ export default function DoctorsPage() {
       await updateDoctor.mutateAsync({
         name: editingDoctor,
         shippingAddress: formData.shippingAddress,
-        dilNumber: formData.dilNumber,
+        dilNumber: "",
       });
       toast.success("Doctor updated successfully");
       setIsEditDialogOpen(false);
@@ -316,7 +296,6 @@ export default function DoctorsPage() {
                 <TableHead className="font-semibold">
                   Shipping Address
                 </TableHead>
-                <TableHead className="font-semibold">DIL No</TableHead>
                 <TableHead className="font-semibold">Custom Prices</TableHead>
                 <TableHead className="text-right font-semibold">
                   Actions
@@ -329,9 +308,6 @@ export default function DoctorsPage() {
                   <TableCell className="font-medium">{doctor.name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                     {doctor.shippingAddress}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {doctor.dilNumber?.trim() ? doctor.dilNumber : "N/A"}
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">

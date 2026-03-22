@@ -212,16 +212,18 @@ import type { BackupRecord as _BackupRecord, Doctor as _Doctor, FirmSettings as 
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async addDoctor(arg0: string, arg1: string, arg2: string): Promise<void> {
+        // dilNumber is encoded as opt text: [value] or [] for empty string
+        const dilOpt: [] | [string] = (arg2 && arg2.trim()) ? [arg2] : [];
         if (this.processError) {
             try {
-                const result = await this.actor.addDoctor(arg0, arg1, arg2);
+                const result = await this.actor.addDoctor(arg0, arg1, dilOpt);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.addDoctor(arg0, arg1, arg2);
+            const result = await this.actor.addDoctor(arg0, arg1, dilOpt);
             return result;
         }
     }
@@ -578,28 +580,30 @@ export class Backend implements backendInterface {
     async setInvoicePrinted(arg0: bigint, arg1: boolean): Promise<void> {
         if (this.processError) {
             try {
-                const result = await (this.actor as any).setInvoicePrinted(arg0, arg1);
+                const result = await this.actor.setInvoicePrinted(arg0, arg1);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await (this.actor as any).setInvoicePrinted(arg0, arg1);
+            const result = await this.actor.setInvoicePrinted(arg0, arg1);
             return result;
         }
     }
     async updateDoctor(arg0: string, arg1: string, arg2: string): Promise<void> {
+        // dilNumber is encoded as opt text: [value] or [] for empty/missing
+        const dilOpt: [] | [string] = (arg2 && arg2.trim()) ? [arg2] : [];
         if (this.processError) {
             try {
-                const result = await this.actor.updateDoctor(arg0, arg1, arg2);
+                const result = await this.actor.updateDoctor(arg0, arg1, dilOpt);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateDoctor(arg0, arg1, arg2);
+            const result = await this.actor.updateDoctor(arg0, arg1, dilOpt);
             return result;
         }
     }

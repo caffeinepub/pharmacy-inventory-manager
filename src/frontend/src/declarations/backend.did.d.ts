@@ -23,6 +23,7 @@ export interface Doctor {
   'name' : string,
   'customPrices' : Array<[string, bigint]>,
   'shippingAddress' : string,
+  'dilNumber' : string,
 }
 export interface FirmSettings {
   'contact' : string,
@@ -45,6 +46,7 @@ export interface Invoice {
   'items' : Array<InvoiceItem>,
   'doctorName' : string,
   'subtotal' : bigint,
+  'printed' : boolean,
 }
 export interface InvoiceItem {
   'purchaseRate' : bigint,
@@ -93,7 +95,8 @@ export type ProfitLossTimeFilter = { 'all' : null } |
   { 'daily' : null } |
   { 'weekly' : null };
 export interface _SERVICE {
-  'addDoctor' : ActorMethod<[string, string], undefined>,
+  // dilNumber is opt text for backward-compatible canister upgrades
+  'addDoctor' : ActorMethod<[string, string, [] | [string]], undefined>,
   'addOrUpdateMedicine' : ActorMethod<
     [string, bigint, bigint, string, string, string, bigint, bigint, bigint],
     undefined
@@ -125,7 +128,9 @@ export interface _SERVICE {
   'removeDoctorMedicinePrice' : ActorMethod<[string, string], undefined>,
   'setAppPin' : ActorMethod<[string], undefined>,
   'setDoctorMedicinePrice' : ActorMethod<[string, string, bigint], undefined>,
-  'updateDoctor' : ActorMethod<[string, string], undefined>,
+  'setInvoicePrinted' : ActorMethod<[bigint, boolean], undefined>,
+  // dilNumber is opt text for backward-compatible canister upgrades
+  'updateDoctor' : ActorMethod<[string, string, [] | [string]], undefined>,
   'updateFirmSettings' : ActorMethod<
     [string, string, string, string, string, string, string],
     undefined
