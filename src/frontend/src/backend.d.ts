@@ -93,6 +93,27 @@ export enum ProfitLossTimeFilter {
     daily = "daily",
     weekly = "weekly"
 }
+export interface CreditNoteItem {
+    medicineName: string;
+    batchNumber: string;
+    hsnCode: string;
+    quantity: bigint;
+    sellingPrice: bigint;
+    amount: bigint;
+    expiryDate: string;
+}
+export interface CreditNote {
+    creditNoteNumber: bigint;
+    linkedInvoiceNumber: bigint;
+    doctorName: string;
+    timestamp: bigint;
+    items: Array<CreditNoteItem>;
+    subtotal: bigint;
+    gstAmount: bigint;
+    grandTotal: bigint;
+    reason: string;
+    status: string;
+}
 export interface backendInterface {
     addDoctor(name: string, shippingAddress: string, dilNumber: string): Promise<void>;
     addOrUpdateMedicine(name: string, openingStock: bigint, sampling: bigint, batchNumber: string, hsnCode: string, expiryDate: string, purchaseRate: bigint, baseSellingRate: bigint, mrp: bigint): Promise<void>;
@@ -125,4 +146,10 @@ export interface backendInterface {
     updateFirmSettings(name: string, address: string, gstin: string, contact: string, email: string, defaultShippingAddress: string, dilNumber: string): Promise<void>;
     updateOpeningStock(name: string, openingStock: bigint): Promise<void>;
     updateSampling(name: string, sampling: bigint): Promise<void>;
+    createCreditNote(linkedInvoiceNumber: bigint, items: Array<[string, bigint]>, reason: string, status: string): Promise<bigint>;
+    getAllCreditNotes(): Promise<Array<CreditNote>>;
+    getCreditNote(creditNoteNumber: bigint): Promise<CreditNote | null>;
+    deleteCreditNote(creditNoteNumber: bigint): Promise<void>;
+    getDoctorCreditBalance(doctorName: string): Promise<bigint>;
+    getDoctorCreditNotes(doctorName: string): Promise<Array<CreditNote>>;
 }

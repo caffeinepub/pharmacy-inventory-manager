@@ -94,6 +94,27 @@ export type ProfitLossTimeFilter = { 'all' : null } |
   { 'monthly' : null } |
   { 'daily' : null } |
   { 'weekly' : null };
+export interface CreditNoteItem {
+  'medicineName' : string,
+  'batchNumber' : string,
+  'hsnCode' : string,
+  'quantity' : bigint,
+  'sellingPrice' : bigint,
+  'amount' : bigint,
+  'expiryDate' : string,
+}
+export interface CreditNote {
+  'creditNoteNumber' : bigint,
+  'linkedInvoiceNumber' : bigint,
+  'doctorName' : string,
+  'timestamp' : bigint,
+  'items' : Array<CreditNoteItem>,
+  'subtotal' : bigint,
+  'gstAmount' : bigint,
+  'grandTotal' : bigint,
+  'reason' : string,
+  'status' : string,
+}
 export interface _SERVICE {
   // dilNumber is opt text for backward-compatible canister upgrades
   'addDoctor' : ActorMethod<[string, string, [] | [string]], undefined>,
@@ -137,6 +158,12 @@ export interface _SERVICE {
   >,
   'updateOpeningStock' : ActorMethod<[string, bigint], undefined>,
   'updateSampling' : ActorMethod<[string, bigint], undefined>,
+  'createCreditNote' : ActorMethod<[bigint, Array<[string, bigint]>, string, string], bigint>,
+  'getAllCreditNotes' : ActorMethod<[], Array<CreditNote>>,
+  'getCreditNote' : ActorMethod<[bigint], [] | [CreditNote]>,
+  'deleteCreditNote' : ActorMethod<[bigint], undefined>,
+  'getDoctorCreditBalance' : ActorMethod<[string], bigint>,
+  'getDoctorCreditNotes' : ActorMethod<[string], Array<CreditNote>>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

@@ -124,6 +124,32 @@ actor {
     invoiceCount : Nat;
   };
 
+  // ─── Credit Note Types ──────────────────────────────────────────────────────
+
+  type CreditNoteItem = {
+    medicineName : Text;
+    batchNumber : Text;
+    hsnCode : Text;
+    quantity : Int;
+    sellingPrice : Int;
+    amount : Int;
+    expiryDate : Text;
+  };
+
+  // status: "apply_to_balance" | "refund" | "carry_forward"
+  type CreditNote = {
+    creditNoteNumber : Nat;
+    linkedInvoiceNumber : Nat;
+    doctorName : Text;
+    timestamp : Int;
+    items : [CreditNoteItem];
+    subtotal : Int;
+    gstAmount : Int;
+    grandTotal : Int;
+    reason : Text;
+    status : Text;
+  };
+
   let medicines = Map.empty<Text, Medicine>();
   let doctors = Map.empty<Text, Doctor>();
   // Separate stable map for doctor DIL numbers — new, defaults to "" when absent
@@ -137,6 +163,11 @@ actor {
   var appPin : ?Text = null;
 
   let paymentRecords = Map.empty<Nat, List.List<PaymentRecord>>();
+
+  // Credit note stable storage
+  let creditNotes = Map.empty<Nat, CreditNote>();
+  let doctorCreditBalances = Map.empty<Text, Int>();
+  var nextCreditNoteNumber = 1;
 
   // Helper: attach dilNumber to a stored Doctor
   func withDil(doctor : Doctor) : DoctorWithDil {
@@ -775,5 +806,116 @@ actor {
 
   public shared ({ caller }) func setAppPin(pin : Text) : async () {
     appPin := ?pin;
+  };
+
+  // ─── Credit Note Management ─────────────────────────────────────────────────
+
+  // items: [(medicineName, creditedQuantity)]
+  // status: "apply_to_balance" | "refund" | "carry_forward"
+  public shared ({ caller }) func createCreditNote(
+    linkedInvoiceNumber : Nat,
+    items : [(Text, Int)],
+    reason : Text,
+    status : Text,
+  ) : async Nat {
+    switch (invoices.get(linkedInvoiceNumber)) {
+      case (null) {
+        Runtime.trap("Linked invoice not found");
+      };
+      case (?invoice) {
+        let cnItems = List.empty<CreditNoteItem>();
+
+        for ((medicineName, qty) in items.values()) {
+          // Find the item in the original invoice to get price/batch/hsn/expiry
+          let found = invoice.items.find(func(item : InvoiceItem) : Bool { item.medicineName == medicineName });
+          switch (found) {
+            case (null) {
+              Runtime.trap("Medicine not found in invoice: " # medicineName);
+            };
+            case (?origItem) {
+              let cnItem : CreditNoteItem = {
+                medicineName;
+                batchNumber = origItem.batchNumber;
+                hsnCode = origItem.hsnCode;
+                quantity = qty;
+                sellingPrice = origItem.sellingPrice;
+                amount = origItem.sellingPrice * qty;
+                expiryDate = origItem.expiryDate;
+              };
+              cnItems.add(cnItem);
+            };
+          };
+        };
+
+        let subtotal = cnItems.foldLeft(Int.fromNat(0), func(acc, item) { acc + item.amount });
+        let gstAmount = (subtotal * 5) / 100;
+        let grandTotal = subtotal + gstAmount;
+
+        let cn : CreditNote = {
+          creditNoteNumber = nextCreditNoteNumber;
+          linkedInvoiceNumber;
+          doctorName = invoice.doctorName;
+          timestamp = Time.now();
+          items = cnItems.toArray();
+          subtotal;
+          gstAmount;
+          grandTotal;
+          reason;
+          status;
+        };
+
+        creditNotes.add(nextCreditNoteNumber, cn);
+        nextCreditNoteNumber += 1;
+
+        // Accounting impact
+        if (status == "apply_to_balance") {
+          // Reduce amountDue on the linked invoice (floored at 0)
+          let newAmountDue = if (invoice.amountDue - grandTotal < 0) { 0 } else { invoice.amountDue - grandTotal };
+          let newAmountPaid = invoice.grandTotal - newAmountDue;
+          let updatedInvoice : Invoice = {
+            invoice with
+            amountDue = newAmountDue;
+            amountPaid = newAmountPaid;
+          };
+          invoices.add(linkedInvoiceNumber, updatedInvoice);
+        } else if (status == "carry_forward") {
+          // Add to doctor's credit balance
+          let existing = switch (doctorCreditBalances.get(invoice.doctorName)) {
+            case (?b) { b };
+            case (null) { 0 };
+          };
+          doctorCreditBalances.add(invoice.doctorName, existing + grandTotal);
+        };
+        // "refund" — no balance changes, only the credit note record is stored
+
+        cn.creditNoteNumber;
+      };
+    };
+  };
+
+  public query ({ caller }) func getAllCreditNotes() : async [CreditNote] {
+    creditNotes.values().toArray();
+  };
+
+  public query ({ caller }) func getCreditNote(creditNoteNumber : Nat) : async ?CreditNote {
+    creditNotes.get(creditNoteNumber);
+  };
+
+  public shared ({ caller }) func deleteCreditNote(creditNoteNumber : Nat) : async () {
+    if (not creditNotes.containsKey(creditNoteNumber)) {
+      Runtime.trap("Credit note not found");
+    };
+    creditNotes.remove(creditNoteNumber);
+  };
+
+  public query ({ caller }) func getDoctorCreditBalance(doctorName : Text) : async Int {
+    switch (doctorCreditBalances.get(doctorName)) {
+      case (?b) { b };
+      case (null) { 0 };
+    };
+  };
+
+  public query ({ caller }) func getDoctorCreditNotes(doctorName : Text) : async [CreditNote] {
+    creditNotes.values().filter(func(cn) { cn.doctorName == doctorName }).toArray();
   };
 };

@@ -35,16 +35,21 @@ import {
 import React, { useRef, useState } from "react";
 import { toast } from "sonner";
 import type {
+  CreditNote,
   FirmSettings,
   Invoice,
   LedgerSummary,
   PaymentRecord,
 } from "../backend.d";
 import { useActor } from "../hooks/useActor";
-import { useGetAllDoctors, useGetAllInvoices } from "../hooks/useQueries";
+import {
+  useGetAllDoctors,
+  useGetAllInvoices,
+  useGetDoctorCreditNotes,
+} from "../hooks/useQueries";
 import { downloadElementAsJpeg } from "../utils/invoiceDownload";
 
-// ─── Hooks ───────────────────────────────────────────────────────────────────
+// ─── Hooks ───────────────────────────────────────────────────────
 
 function useGetDoctorLedgerSummary(doctorName: string) {
   const { actor, isFetching } = useActor();
@@ -129,7 +134,7 @@ function useRecordPayment() {
   });
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────
 
 interface DoctorSummary {
   doctorName: string;
@@ -144,7 +149,7 @@ function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-// ─── LedgerPrintView ─────────────────────────────────────────────────────────
+// ─── LedgerPrintView ──────────────────────────────────────────────────
 // Uses ONLY inline styles with hex colors — no Tailwind, no oklch — for html2canvas
 
 interface LedgerPrintViewProps {
@@ -506,7 +511,7 @@ function LedgerPrintView({
   );
 }
 
-// ─── SummaryCard ──────────────────────────────────────────────────────────────
+// ─── SummaryCard ───────────────────────────────────────────────────────────
 
 function SummaryCard({
   title,
@@ -573,7 +578,7 @@ function SummaryCard({
   );
 }
 
-// ─── Doctor List View ─────────────────────────────────────────────────────────
+// ─── Doctor List View ───────────────────────────────────────────────────
 
 function DoctorListView({
   summaries,
@@ -664,7 +669,7 @@ function DoctorListView({
   );
 }
 
-// ─── Payment Dialog ──────────────────────────────────────────────────────────
+// ─── Payment Dialog ───────────────────────────────────────────────────
 
 function RecordPaymentDialog({
   open,
@@ -916,6 +921,125 @@ function InvoiceRow({
   );
 }
 
+// ─── Credit Notes Section (ंin Doctor Detail) ──────────────────────────────────
+
+function statusLabel(status: string): string {
+  if (status === "apply_to_balance") return "Applied to Balance";
+  if (status === "refund") return "Refund";
+  if (status === "carry_forward") return "Carried Forward";
+  return status;
+}
+
+function statusColor(status: string): string {
+  if (status === "apply_to_balance") return "text-blue-600";
+  if (status === "refund") return "text-green-600";
+  if (status === "carry_forward") return "text-orange-600";
+  return "text-foreground";
+}
+
+function DoctorCreditNotesCard({ doctorName }: { doctorName: string }) {
+  const { data: creditNotes = [], isLoading } =
+    useGetDoctorCreditNotes(doctorName);
+
+  if (isLoading) {
+    return <Skeleton className="h-20 w-full" />;
+  }
+
+  if (creditNotes.length === 0) return null;
+
+  const totalCredited = creditNotes.reduce(
+    (sum, cn) => sum + Number(cn.grandTotal),
+    0,
+  );
+  const carryForwardBalance = creditNotes
+    .filter((cn) => cn.status === "carry_forward")
+    .reduce((sum, cn) => sum + Number(cn.grandTotal), 0);
+
+  return (
+    <Card className="border-red-200">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center justify-between">
+          <span className="text-red-600">Credit Notes</span>
+          <div className="flex gap-4 text-sm">
+            <span className="text-muted-foreground">
+              Total Credited:{" "}
+              <strong className="text-red-600">
+                ₹{totalCredited.toLocaleString("en-IN")}
+              </strong>
+            </span>
+            {carryForwardBalance > 0 && (
+              <span className="text-orange-600 font-semibold">
+                Carry Forward: ₹{carryForwardBalance.toLocaleString("en-IN")}
+              </span>
+            )}
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-lg border border-red-100 overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-red-50">
+                <TableHead className="font-semibold text-xs">CN #</TableHead>
+                <TableHead className="font-semibold text-xs">
+                  Invoice Ref
+                </TableHead>
+                <TableHead className="text-right font-semibold text-xs">
+                  Amount
+                </TableHead>
+                <TableHead className="font-semibold text-xs">Status</TableHead>
+                <TableHead className="font-semibold text-xs">Reason</TableHead>
+                <TableHead className="font-semibold text-xs">Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {creditNotes
+                .slice()
+                .sort(
+                  (a, b) =>
+                    Number(b.creditNoteNumber) - Number(a.creditNoteNumber),
+                )
+                .map((creditNote) => (
+                  <TableRow key={Number(creditNote.creditNoteNumber)}>
+                    <TableCell className="font-mono text-xs text-red-600">
+                      CN-
+                      {creditNote.creditNoteNumber.toString().padStart(6, "0")}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      INV-
+                      {creditNote.linkedInvoiceNumber
+                        .toString()
+                        .padStart(6, "0")}
+                    </TableCell>
+                    <TableCell className="text-right text-xs font-semibold text-red-600">
+                      ₹{Number(creditNote.grandTotal).toLocaleString("en-IN")}
+                    </TableCell>
+                    <TableCell
+                      className={`text-xs font-medium ${statusColor(creditNote.status)}`}
+                    >
+                      {statusLabel(creditNote.status)}
+                    </TableCell>
+                    <TableCell
+                      className="text-xs text-muted-foreground max-w-[120px] truncate"
+                      title={creditNote.reason}
+                    >
+                      {creditNote.reason}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {new Date(
+                        Number(creditNote.timestamp) / 1_000_000,
+                      ).toLocaleDateString("en-IN")}
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Doctor Detail View ───────────────────────────────────────────────────────
 
 function DoctorDetailView({
@@ -1119,6 +1243,9 @@ function DoctorDetailView({
         </CardContent>
       </Card>
 
+      {/* Credit Notes for this doctor */}
+      <DoctorCreditNotesCard doctorName={doctorName} />
+
       {/* Hidden off-screen container for ledger print/JPG capture */}
       <div
         ref={ledgerPrintRef}
@@ -1155,7 +1282,7 @@ function DoctorDetailView({
   );
 }
 
-// ─── Main LedgerPage ──────────────────────────────────────────────────────────
+// ─── Main LedgerPage ────────────────────────────────────────────────────────
 
 export default function LedgerPage() {
   const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);

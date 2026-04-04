@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BookOpen,
+  FileMinus,
   FileText,
   LayoutDashboard,
   Package,
@@ -14,6 +15,7 @@ import { useEffect, useState } from "react";
 import PinScreen from "./components/PinScreen";
 import { useActor } from "./hooks/useActor";
 import BillingPage from "./pages/BillingPage";
+import CreditNotesPage from "./pages/CreditNotesPage";
 import DashboardPage from "./pages/DashboardPage";
 import DoctorsPage from "./pages/DoctorsPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -90,7 +92,7 @@ function AppShell() {
                   PharmaCare ERP
                 </h1>
                 <p className="text-xs text-muted-foreground">
-                  Inventory & Billing Management
+                  Inventory &amp; Billing Management
                 </p>
               </div>
             </div>
@@ -100,7 +102,7 @@ function AppShell() {
 
       <main className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7 mb-6 h-auto p-1">
+          <TabsList className="grid w-full grid-cols-8 mb-6 h-auto p-1">
             <TabsTrigger
               value="dashboard"
               className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -137,6 +139,13 @@ function AppShell() {
               <span className="hidden sm:inline">Invoices</span>
             </TabsTrigger>
             <TabsTrigger
+              value="creditnotes"
+              className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <FileMinus className="w-4 h-4" />
+              <span className="hidden sm:inline">Credit Notes</span>
+            </TabsTrigger>
+            <TabsTrigger
               value="ledger"
               className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
@@ -167,6 +176,9 @@ function AppShell() {
           <TabsContent value="invoices" className="mt-0">
             <InvoicesPage />
           </TabsContent>
+          <TabsContent value="creditnotes" className="mt-0">
+            <CreditNotesPage />
+          </TabsContent>
           <TabsContent value="ledger" className="mt-0">
             <LedgerPage />
           </TabsContent>
@@ -179,9 +191,9 @@ function AppShell() {
       <footer className="border-t border-border mt-12 py-6 bg-card/30">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>
-            © 2026. Built with love using{" "}
+            &copy; {new Date().getFullYear()}. Built with love using{" "}
             <a
-              href="https://caffeine.ai"
+              href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"

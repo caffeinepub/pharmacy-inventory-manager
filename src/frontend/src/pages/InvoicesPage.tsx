@@ -28,10 +28,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Eye, FileText, Printer, Trash2 } from "lucide-react";
+import {
+  Download,
+  Eye,
+  FileMinus,
+  FileText,
+  Printer,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Invoice, InvoiceItem } from "../backend.d";
+import CreateCreditNoteDialog from "../components/CreateCreditNoteDialog";
 import type { EditableInvoiceData } from "../components/InvoicePreview";
 import InvoicePreview from "../components/InvoicePreview";
 import {
@@ -53,6 +61,10 @@ export default function InvoicesPage() {
   const [deleteInvoiceNumber, setDeleteInvoiceNumber] = useState<bigint | null>(
     null,
   );
+  const [createCNForInvoice, setCreateCNForInvoice] = useState<Invoice | null>(
+    null,
+  );
+
   const { data: invoices = [], isLoading } = useGetAllInvoices();
   const { data: firmSettings } = useGetFirmSettings();
   const { data: doctors = [] } = useGetAllDoctors();
@@ -378,6 +390,17 @@ export default function InvoicesPage() {
                   <FileText className="w-4 h-4" />
                   Save as PDF
                 </Button>
+                <Button
+                  onClick={() => {
+                    setCreateCNForInvoice(selectedInvoice);
+                  }}
+                  variant="outline"
+                  className="gap-2 border-red-300 text-red-600 hover:bg-red-50"
+                  data-ocid="invoices.open_modal_button"
+                >
+                  <FileMinus className="w-4 h-4" />
+                  Create Credit Note
+                </Button>
               </div>
             </DialogTitle>
           </DialogHeader>
@@ -421,6 +444,17 @@ export default function InvoicesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create Credit Note Dialog */}
+      {createCNForInvoice && (
+        <CreateCreditNoteDialog
+          open={createCNForInvoice !== null}
+          onClose={() => setCreateCNForInvoice(null)}
+          invoice={createCNForInvoice}
+          firmSettings={firmSettings}
+          medicines={medicines}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  CreditNote,
   Doctor,
   FirmSettings,
   Invoice,
@@ -474,5 +475,91 @@ export function useGetTotalBilledQuantity() {
       if (!actor) throw new Error("Actor not initialized");
       return actor.getTotalBilledQuantity(name);
     },
+  });
+}
+
+// ─── Credit Note Queries ──────────────────────────────────────────────────────
+
+export function useGetAllCreditNotes() {
+  const { actor, isFetching } = useActor();
+  return useQuery<CreditNote[]>({
+    queryKey: ["creditNotes"],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return await (actor as any).getAllCreditNotes();
+      } catch {
+        // backend may not have this method yet — gracefully return empty
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useCreateCreditNote() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      linkedInvoiceNumber: bigint;
+      items: Array<[string, bigint]>;
+      reason: string;
+      status: string;
+    }) => {
+      if (!actor) throw new Error("Actor not initialized");
+      try {
+        return await (actor as any).createCreditNote(
+          params.linkedInvoiceNumber,
+          params.items,
+          params.reason,
+          params.status,
+        );
+      } catch (e) {
+        throw new Error(
+          `Failed to create credit note: ${(e as Error).message}`,
+        );
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creditNotes"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+export function useDeleteCreditNote() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (creditNoteNumber: bigint) => {
+      if (!actor) throw new Error("Actor not initialized");
+      try {
+        return await (actor as any).deleteCreditNote(creditNoteNumber);
+      } catch (e) {
+        throw new Error(
+          `Failed to delete credit note: ${(e as Error).message}`,
+        );
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creditNotes"] });
+    },
+  });
+}
+
+export function useGetDoctorCreditNotes(doctorName: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<CreditNote[]>({
+    queryKey: ["doctorCreditNotes", doctorName],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return await (actor as any).getDoctorCreditNotes(doctorName);
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching && !!doctorName,
   });
 }
